@@ -46,7 +46,7 @@ const POSITION_SALARY: Partial<Record<Position, number>> = { QB: 2.4, DE: 1.3, O
 
 export function salaryFor(ovr: number, pos: Position): number {
   const base = Math.max(0, ovr - 55);
-  return Math.round(Math.max(750, 700 + base * base * 9 * (POSITION_SALARY[pos] ?? 1)) / 10) * 10;
+  return Math.round(Math.max(750, 600 + base * base * 6 * (POSITION_SALARY[pos] ?? 1)) / 10) * 10;
 }
 
 const clampAttr = (v: number) => Math.max(20, Math.min(99, Math.round(v)));

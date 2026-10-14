@@ -1,0 +1,20 @@
+/** Traduction anglaise partielle : les clés absentes retombent sur le français. */
+export const en: Record<string, string> = {
+  'down.1': '1st', 'down.2': '2nd', 'down.3': '3rd', 'down.4': '4th',
+  'quarter.n': 'Q{n}', 'quarter.ot': 'OT{n}',
+  'goal': 'Goal',
+  'menu.play': 'Quick match', 'menu.season': 'Season', 'menu.coach': 'Coach career', 'menu.franchise': 'Franchise',
+  'menu.player': 'Player career', 'menu.training': 'Training & tutorial', 'menu.spectator': 'Spectator mode',
+  'menu.settings': 'Settings', 'menu.saves': 'Saves', 'menu.continue': 'Continue', 'menu.tapToStart': 'Tap to start',
+  'common.back': 'Back', 'common.next': 'Next', 'common.start': 'Start', 'common.confirm': 'Confirm', 'common.cancel': 'Cancel',
+  'common.home': 'Home', 'common.away': 'Away', 'common.yes': 'Yes', 'common.no': 'No', 'common.close': 'Close', 'common.save': 'Save',
+  'setup.title': 'Match setup', 'setup.control': 'I control', 'setup.difficulty': 'Difficulty', 'setup.quarter': 'Quarter length',
+  'diff.easy': 'Easy', 'diff.normal': 'Normal', 'diff.hard': 'Hard',
+  'select.offense': 'Offense — pick a play', 'select.defense': 'Defense — pick a coverage',
+  'btn.pass': 'PASS', 'btn.target': 'TARGET', 'btn.juke': 'JUKE', 'btn.dive': 'DIVE', 'btn.switch': 'SWITCH', 'btn.tackle': 'TACKLE',
+  'btn.jump': 'JUMP', 'btn.contain': 'CONTAIN', 'btn.kick': 'KICK', 'btn.fairCatch': 'FAIR CATCH', 'btn.protect': 'PROTECT',
+  'tag.FIRST_DOWN': 'First down', 'tag.INCOMPLETE': 'Incomplete pass', 'tag.TURNOVER_ON_DOWNS': 'Turnover on downs',
+  'pause.title': 'Paused', 'pause.resume': 'Resume', 'pause.quit': 'Quit match',
+  'result.win': 'VICTORY', 'result.loss': 'DEFEAT', 'result.tie': 'TIE', 'result.rematch': 'Rematch', 'result.menu': 'Main menu',
+  'settings.title': 'Settings', 'settings.language': 'Language',
+};

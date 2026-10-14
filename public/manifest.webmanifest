@@ -1,0 +1,9 @@
+{
+  "name": "Gridiron Dynasty",
+  "short_name": "Gridiron",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "start_url": "./"
+}
