@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { DEFAULT_RULES, type RulesConfig } from '../../src/rules/config';
+import { DEFAULT_RULES, PLAYOFF_RULES, twoMinuteSeconds, type RulesConfig } from '../../src/rules/config';
 import { applyCoinToss, applyRunoff, attackDir, callTimeout, createGameState, resolvePlay, setConversionType } from '../../src/rules/engine';
 import { emptyResult, type GameState, type PlayResult, type Side } from '../../src/rules/types';
 
@@ -75,6 +75,8 @@ describe('downs et premier down', () => {
 
   it('sortie en touche arrête le chrono', () => {
     const s = scrimmageState(0, 30);
+    s.quarter = 4;
+    s.clock = 30;
     run(s, 34, { outOfBounds: true });
     expect(s.clockRunning).toBe(false);
     const s2 = scrimmageState(0, 30);
@@ -269,6 +271,71 @@ describe('pénalités', () => {
     expect(s.down).toBe(1);
   });
 
+  it('holding défensif : +5 yards et premier down automatique', () => {
+    const s = scrimmageState(0, 30, 3, 9);
+    const tags = run(s, 30, { incomplete: true, penalties: [{ type: 'holding', against: 1 }] });
+    expect(tags).toContain('PENALTY:holding:accepted');
+    expect(s.ballOn).toBe(35);
+    expect(s.down).toBe(1);
+    expect(s.toGo).toBe(10);
+  });
+
+  it('interférence offensive : -10 yards, down rejoué', () => {
+    const s = scrimmageState(0, 40, 2, 7);
+    const tags = run(s, 60, { penalties: [{ type: 'passInterference', against: 0 }] });
+    expect(tags).toContain('PENALTY:passInterference:accepted');
+    expect(s.ballOn).toBe(30);
+    expect(s.down).toBe(2);
+    expect(s.toGo).toBe(17);
+  });
+
+  it('contact illégal sur le passeur : +15 yards après l’action et premier down', () => {
+    const s = scrimmageState(0, 30, 3, 8);
+    run(s, 30, { incomplete: true, penalties: [{ type: 'roughingThePasser', against: 1 }] });
+    expect(s.ballOn).toBe(45);
+    expect(s.down).toBe(1);
+  });
+
+  it('passe volontairement au sol : perte du down et recul de 10 yards', () => {
+    const s = scrimmageState(0, 40, 2, 10);
+    run(s, 40, { incomplete: true, penalties: [{ type: 'intentionalGrounding', against: 0, spot: 33 }] });
+    expect(s.ballOn).toBe(30);
+    expect(s.down).toBe(3);
+    expect(s.toGo).toBe(20);
+  });
+
+  it('passe volontairement au sol dans son en-but = safety', () => {
+    const s = scrimmageState(0, 5, 1, 10);
+    const tags = run(s, 5, { incomplete: true, penalties: [{ type: 'intentionalGrounding', against: 0, spot: -2 }] });
+    expect(tags).toContain('SAFETY');
+    expect(s.score[1]).toBe(2);
+  });
+
+  it('retard de jeu : -5 yards, down rejoué', () => {
+    const s = scrimmageState(0, 30, 3, 2);
+    run(s, 30, { preSnapPenalty: { type: 'delayOfGame', against: 0 }, elapsed: 0 });
+    expect(s.ballOn).toBe(25);
+    expect(s.down).toBe(3);
+    expect(s.toGo).toBe(7);
+  });
+
+  it('antisportif de la défense sur un touchdown : coup d’envoi avancé de 15 yards', () => {
+    const s = scrimmageState(0, 90, 1, 10);
+    run(s, 101, { penalties: [{ type: 'unsportsmanlike', against: 1 }] });
+    expect(s.score[0]).toBe(6);
+    resolvePlay(s, { ...emptyResult('extraPoint', 0, 98), kickGood: true }, rules);
+    expect(s.nextKind).toBe('kickoff');
+    expect(s.ballOn).toBe(50);
+  });
+
+  it('antisportif de l’attaque sur un touchdown : coup d’envoi reculé de 15 yards', () => {
+    const s = scrimmageState(0, 90, 1, 10);
+    run(s, 101, { penalties: [{ type: 'unsportsmanlike', against: 0 }] });
+    expect(s.score[0]).toBe(6);
+    resolvePlay(s, { ...emptyResult('extraPoint', 0, 98), kickGood: true }, rules);
+    expect(s.ballOn).toBe(20);
+  });
+
   it('fautes compensées : down rejoué', () => {
     const s = scrimmageState(0, 30, 2, 8);
     const tags = run(s, 50, { penalties: [{ type: 'holding', against: 0 }, { type: 'facemask', against: 1 }] });
@@ -296,6 +363,45 @@ describe('chronomètre et périodes', () => {
     expect(s.clockRunning).toBe(false);
     s.timeouts[0] = 0;
     expect(callTimeout(s, 0)).toBe(false);
+  });
+
+  it('sortie en touche en début de match : le chrono repart', () => {
+    const s = scrimmageState(0, 30);
+    s.quarter = 1;
+    s.clock = 150;
+    run(s, 36, { outOfBounds: true });
+    expect(s.clockRunning).toBe(true);
+  });
+
+  it('sortie en touche dans les dernières minutes du 4e QT : chrono arrêté', () => {
+    const s = scrimmageState(0, 30);
+    s.quarter = 4;
+    s.clock = 40;
+    run(s, 36, { outOfBounds: true });
+    expect(s.clockRunning).toBe(false);
+  });
+
+  it('two-minute warning au 2e QT : chrono arrêté au seuil', () => {
+    const s = scrimmageState(0, 30);
+    s.quarter = 2;
+    s.clock = 30;
+    s.clockRunning = true;
+    const tags = run(s, 34, { elapsed: 10 });
+    expect(tags).toContain('TWO_MINUTE_WARNING');
+    expect(s.clockRunning).toBe(false);
+    // pas de second avertissement dans la même mi-temps
+    s.clockRunning = true;
+    const tags2 = run(s, 37, { elapsed: 2 });
+    expect(tags2).not.toContain('TWO_MINUTE_WARNING');
+  });
+
+  it('l’écoulement entre les actions s’arrête au two-minute warning', () => {
+    const s = scrimmageState(0, 30);
+    s.quarter = 4;
+    s.clock = 30;
+    s.clockRunning = true;
+    applyRunoff(s, rules);
+    expect(s.clock).toBeGreaterThanOrEqual(twoMinuteSeconds(rules));
   });
 
   it('fin du 1er quart-temps : la possession continue', () => {
@@ -393,13 +499,38 @@ describe('prolongation (mort subite modifiée)', () => {
     return s;
   }
 
-  it('touchdown sur la première possession = victoire', () => {
+  it('touchdown sur la première possession : l’adversaire a quand même sa possession', () => {
     const s = otState();
     expect(s.possession).toBe(0);
     s.ballOn = 95;
     run(s, 101);
+    expect(s.finished).toBe(false);
+    expect(s.nextKind).toBe('conversion');
+    resolvePlay(s, { ...emptyResult('extraPoint', 0, 98), kickGood: true }, rules);
+    expect(s.score).toEqual([17, 10]);
+    expect(s.finished).toBe(false);
+    resolvePlay(s, { ...emptyResult('kickoff', 1, 110), kickTouchback: true }, rules);
+    expect(s.possession).toBe(1);
+    // l'équipe 1 échoue au 4e down → victoire de l'équipe 0
+    s.down = 4;
+    s.toGo = 5;
+    run(s, s.ballOn + 2);
     expect(s.finished).toBe(true);
     expect(s.winner).toBe(0);
+  });
+
+  it('safety en prolongation = victoire immédiate', () => {
+    const s = otState();
+    s.ballOn = 3;
+    run(s, -1);
+    expect(s.finished).toBe(true);
+    expect(s.winner).toBe(1);
+  });
+
+  it('prolongation de playoffs : pas de match nul, périodes de 15 min', () => {
+    const p = PLAYOFF_RULES(rules);
+    expect(p.overtime.allowTie).toBe(false);
+    expect(p.overtime.lengthRatio).toBe(1);
   });
 
   it('field goal sur la première possession : l’adversaire a sa chance', () => {
@@ -452,6 +583,14 @@ describe('statistiques', () => {
     expect(s.teamStats[0].passYds).toBe(12);
     expect(s.teamStats[0].totalYards).toBe(12);
     expect(s.teamStats[0].firstDowns).toBe(1);
+  });
+
+  it('plaquage pour perte et fumble provoqué sont comptés', () => {
+    const s = scrimmageState(0, 30);
+    run(s, 27, { stats: [{ kind: 'rush', runner: 'rb0', yards: -3 }, { kind: 'tackle', by: 'lb1', forLoss: true }, { kind: 'forcedFumble', by: 'lb1' }] });
+    expect(s.playerStats['lb1'].tackles).toBe(1);
+    expect(s.playerStats['lb1'].tfl).toBe(1);
+    expect(s.playerStats['lb1'].ff).toBe(1);
   });
 
   it('les statistiques d’une action annulée par une pénalité acceptée ne comptent pas', () => {

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0 — règles NFL appliquées
+
+### Ajouté
+- Quart-temps de 15 min (durée réelle) en plus de 1, 3 et 5 min.
+- Chrono de jeu de 40 s (affiché dans le HUD, rouge sous 10 s) et pénalité de retard de jeu (−5) ; option dans les paramètres.
+- Two-minute warning aux 2e et 4e quarts-temps.
+- Pénalités : holding défensif (+5 et 1er down automatique), interférence offensive (−10), contact illégal sur le passeur
+  (+15, 1er down), passe volontairement au sol (perte du down, safety dans l'en-but), comportement antisportif (15 yards,
+  reportés sur le coup d'envoi après un score).
+- Statistiques : plaquages pour perte (TFL) et fumbles provoqués, affichés dans les résultats.
+
+### Modifié
+- Prolongation : chaque équipe a au moins une possession, même après un TD sur la première ; mort subite ensuite ;
+  playoffs en périodes de la durée d'un quart-temps, sans égalité.
+- Sortie en touche : le chrono ne s'arrête que dans les 2 dernières minutes du 2e QT, les 5 dernières du 4e et en
+  prolongation.
+- QB IA : laisse davantage les tracés se développer et ne jette le ballon hors du terrain qu'en dehors du tackle box.
+
 ## 0.1.0 — première version jouable
 
 ### Ajouté

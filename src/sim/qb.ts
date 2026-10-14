@@ -136,7 +136,9 @@ export function qbDecide(sim: PlaySim, qb: Agent): QbDecision {
       }
     }
     if (fallback && fs > 1.1) return { action: 'throw', target: fallback.idx, passType: 'touch' };
-    if (t > 4.8 || sim.rng.chance(0.25 * (aw / 100))) return { action: 'throwAway' };
+    // dégagement en touche seulement hors de la poche (sinon : intentional grounding)
+    if (!sim.inTackleBox(qb) && (t > 4.8 || sim.rng.chance(0.25 * (aw / 100)))) return { action: 'throwAway' };
+    if (t > 5.5 && fallback) return { action: 'throw', target: fallback.idx, passType: 'lob' };
   }
   return { action: 'hold' };
 }

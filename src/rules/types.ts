@@ -5,12 +5,14 @@ export const other = (s: Side): Side => (s === 0 ? 1 : 0);
 
 export type NextKind = 'kickoff' | 'scrimmage' | 'conversion';
 
-export type PenaltyType = 'falseStart' | 'offside' | 'holding' | 'passInterference' | 'facemask';
+export type PenaltyType =
+  | 'falseStart' | 'offside' | 'delayOfGame' | 'holding' | 'passInterference' | 'facemask'
+  | 'roughingThePasser' | 'intentionalGrounding' | 'unsportsmanlike';
 
 export interface PenaltyCall {
   type: PenaltyType;
   against: Side;
-  /** Pour l'interférence de passe : emplacement de la faute (repère de l'attaque au snap). */
+  /** Emplacement de la faute (repère de l'attaque au snap) : interférence défensive, passe volontairement au sol. */
   spot?: number;
   playerId?: string;
 }
@@ -104,4 +106,8 @@ export interface GameState {
   playNumber: number;
   /** Indicateur de période terminée lors de la dernière résolution (pour l'interface). */
   lastPeriodEnded: 'none' | 'quarter' | 'half' | 'regulation' | 'overtime';
+  /** Two-minute warning déjà donné : [2e quart-temps, 4e quart-temps]. */
+  twoMinuteWarned: [boolean, boolean];
+  /** Recul du prochain coup d'envoi (comportement antisportif après un score). */
+  kickoffPenalty: number;
 }

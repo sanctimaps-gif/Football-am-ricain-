@@ -32,5 +32,8 @@
 - ⬜ Unity : compiler `unity-port/` dans Unity 6 LTS, porter `sim/` puis le rendu (voir ARCHITECTURE.md).
 
 ## Règles non implémentées
-Two-minute warning, onside kick, coups de pied contrés, challenge vidéo, roughing the passer, intentional grounding,
-pass interference offensive, retours de field goal manqué, safety sur coup de pied, safeties « momentum ».
+Onside kick, coups de pied contrés, challenge vidéo, retours de field goal manqué, safety sur coup de pied, safeties
+« momentum », conversion défensive à 2 points sur retour, chrono de 25 s après temps mort, portage C# des règles 0.2.0
+(`unity-port/` reflète encore la prolongation et les pénalités de la 0.1.0).
+(Implémentés en 0.2.0 : two-minute warning, roughing the passer, intentional grounding, interférence offensive,
+holding défensif, retard de jeu, antisportif, quart-temps de 15 min, prolongation NFL actuelle.)

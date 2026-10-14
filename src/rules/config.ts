@@ -4,7 +4,7 @@
  * touchback au 25), avec durée de quart-temps adaptée au jeu mobile.
  */
 export interface RulesConfig {
-  quarterMinutes: 1 | 3 | 5 | number;
+  quarterMinutes: 1 | 3 | 5 | 15 | number;
   quarters: number;
   timeoutsPerHalf: number;
   kickoffSpot: number; // yards depuis la ligne de but de l'équipe qui botte
@@ -44,9 +44,15 @@ export const DEFAULT_RULES: RulesConfig = {
 
 export const PLAYOFF_RULES = (base: RulesConfig): RulesConfig => ({
   ...base,
-  overtime: { ...base.overtime, enabled: true, allowTie: false },
+  // playoffs NFL : périodes de prolongation de 15 min (durée d'un quart-temps), jamais d'égalité
+  overtime: { ...base.overtime, enabled: true, allowTie: false, lengthRatio: 1 },
 });
 
 export const runoffSeconds = (r: RulesConfig): number => Math.max(2, Math.round((r.runoffSecondsPer15 * r.quarterMinutes) / 15));
 export const quarterSeconds = (r: RulesConfig): number => Math.round(r.quarterMinutes * 60);
 export const overtimeSeconds = (r: RulesConfig): number => Math.round(quarterSeconds(r) * r.overtime.lengthRatio);
+
+/** Seuil du two-minute warning, proportionnel à la durée du quart-temps (2:00 sur 15:00). */
+export const twoMinuteSeconds = (r: RulesConfig): number => Math.max(5, Math.round((120 * quarterSeconds(r)) / 900));
+/** Fenêtre de fin de match où une sortie en touche arrête le chrono (5 dernières minutes sur 15). */
+export const lateFourthSeconds = (r: RulesConfig): number => Math.round((300 * quarterSeconds(r)) / 900);

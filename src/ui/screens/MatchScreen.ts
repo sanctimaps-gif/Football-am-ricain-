@@ -66,6 +66,7 @@ export class MatchScreen implements Screen {
       userSide: cfg.userSide,
       autoSwitch: app.settings.autoSwitch,
       userKicks: app.settings.userKicks,
+      playClock: app.settings.playClock && cfg.context !== 'spectator',
       lockedPlayerId: cfg.lockedPlayerId ?? null,
       plans: cfg.plans,
     });
@@ -190,6 +191,7 @@ export class MatchScreen implements Screen {
       const big = ['TOUCHDOWN', 'SAFETY', 'FG_GOOD', 'TURNOVER_ON_DOWNS', 'TWO_PT_GOOD', 'GAME_OVER'];
       const shown = tags.find((x) => big.includes(x)) ?? tags.find((x) => ['FIRST_DOWN', 'FG_NO_GOOD', 'XP_GOOD', 'XP_NO_GOOD', 'TWO_PT_FAILED', 'INCOMPLETE', 'TOUCHBACK', 'FAIR_CATCH'].includes(x));
       if (shown) this.banner(t(`tag.${shown}`), big.includes(shown), big.includes(shown) ? 2.4 : 1.3);
+      else if (tags.includes('TWO_MINUTE_WARNING')) this.banner(t('tag.TWO_MINUTE_WARNING'), false, 1.8);
       const pen = tags.find((x) => x.startsWith('PENALTY:'));
       if (pen) {
         const [, type, verdict] = pen.split(':');
@@ -289,7 +291,10 @@ export class MatchScreen implements Screen {
       down = `${ordinalDown(s.down)} & ${dist} · ${fieldPosLabel(s.ballOn, own.abbr, opp.abbr)}`;
     } else if (s.nextKind === 'conversion') down = t('select.conversion');
     else down = 'KICKOFF';
-    const key = `${s.score[0]}|${s.score[1]}|${clock}|${s.quarter}|${poss}|${down}|${s.timeouts.join()}|${this.tickerText}`;
+    const pc = this.mc.playClock;
+    const showPc = pc !== null && ['PlaySelection', 'PreSnap'].includes(this.mc.phase);
+    const pcText = showPc ? `⏱ ${Math.max(0, Math.ceil(pc!))}` : '';
+    const key = `${s.score[0]}|${s.score[1]}|${clock}|${s.quarter}|${poss}|${down}|${pcText}|${s.timeouts.join()}|${this.tickerText}`;
     if (key === this.lastHud) return;
     this.lastHud = key;
     const sc = this.hud.querySelectorAll('.sc');
@@ -302,7 +307,14 @@ export class MatchScreen implements Screen {
     this.hud.querySelector('.q')!.textContent = quarterLabel(s.quarter);
     const tos = (side: Side) => [0, 1, 2].map((i) => `<i class="${i < s.timeouts[side] ? '' : 'used'}"></i>`).join('');
     this.hud.querySelector('.tos')!.innerHTML = `<span style="display:flex;gap:3px">${tos(0)}</span>&nbsp;<span style="display:flex;gap:3px">${tos(1)}</span>`;
-    (this.hud.querySelector('.downbar') as HTMLElement).textContent = down;
+    const db = this.hud.querySelector('.downbar') as HTMLElement;
+    db.textContent = down;
+    if (pcText) {
+      const sp = document.createElement('span');
+      sp.className = 'pclock' + (pc! <= 10 ? ' low' : '');
+      sp.textContent = ` · ${pcText}`;
+      db.appendChild(sp);
+    }
     const tk = this.hud.querySelector('.ticker') as HTMLElement;
     tk.style.display = this.tickerText ? '' : 'none';
     tk.textContent = this.tickerText;

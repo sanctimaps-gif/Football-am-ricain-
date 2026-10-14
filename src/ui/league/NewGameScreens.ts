@@ -44,7 +44,7 @@ export class TeamPickScreen implements Screen {
   private render(): void {
     const chips = <T extends string | number>(k: string, vals: T[], cur: T, f: (v: T) => string) => vals.map((v) => `<button class="chip ${v === cur ? 'on' : ''}" data-action="${k}:${v}">${f(v)}</button>`).join('');
     this.el.innerHTML = `<div class="topbar"><button class="btn ghost" data-action="back">‹ Retour</button><h1>${MODE_TITLES[this.mode]} — choisissez votre équipe</h1><button class="btn primary" data-action="start">Commencer ▶</button></div>
-      <div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:6px"><span class="opt-label">Semaines</span>${chips('weeks', [6, 10, 15], this.weeks, (v) => String(v))}<span class="opt-label">Playoffs</span>${chips('po', [2, 4], this.playoff, (v) => `${v * 2} équipes`)}<span class="opt-label">Quart-temps</span>${chips('qm', [1, 3, 5], this.app.settings.quarterMinutes, (v) => `${v} min`)}</div>
+      <div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:6px"><span class="opt-label">Semaines</span>${chips('weeks', [6, 10, 15], this.weeks, (v) => String(v))}<span class="opt-label">Playoffs</span>${chips('po', [2, 4], this.playoff, (v) => `${v * 2} équipes`)}<span class="opt-label">Quart-temps</span>${chips('qm', [1, 3, 5, 15], this.app.settings.quarterMinutes, (v) => `${v} min`)}</div>
       <div class="scroll grow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${this.teams.map((tm, i) => `<button class="team-card" style="--c1:${tm.colors.primary};--c2:${i === this.pick ? '#ffcc1a' : tm.colors.secondary};min-height:120px;${i === this.pick ? 'outline:3px solid #ffcc1a' : ''}" data-action="pick:${i}">${logoSvg(tm.logo, tm.colors, 46)}<div class="name" style="font-size:18px">${esc(tm.name)}</div><div class="city">${esc(tm.city)}</div><div class="ovr">GÉN ${teamOverall(tm)}</div></button>`).join('')}</div>`;
   }
 
@@ -56,7 +56,7 @@ export class TeamPickScreen implements Screen {
     if (k === 'weeks') this.weeks = Number(v);
     if (k === 'po') this.playoff = Number(v) as 2 | 4;
     if (k === 'qm') {
-      this.app.settings.quarterMinutes = Number(v) as 1 | 3 | 5;
+      this.app.settings.quarterMinutes = Number(v) as 1 | 3 | 5 | 15;
       this.app.saveSettings();
     }
     if (k === 'start') {

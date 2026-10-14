@@ -1,4 +1,4 @@
-import { overtimeSeconds, quarterSeconds, runoffSeconds, type RulesConfig } from './config';
+import { lateFourthSeconds, overtimeSeconds, quarterSeconds, runoffSeconds, twoMinuteSeconds, type RulesConfig } from './config';
 import { emptyPlayerStats, emptyTeamStats, type StatEvent } from './stats';
 import { other, type GameState, type PenaltyCall, type PlayResult, type Side } from './types';
 
@@ -10,9 +10,13 @@ import { other, type GameState, type PenaltyCall, type PlayResult, type Side } f
 export const PENALTY_YARDS: Record<PenaltyCall['type'], number> = {
   falseStart: 5,
   offside: 5,
-  holding: 10,
-  passInterference: 0, // faute au point
+  delayOfGame: 5,
+  holding: 10, // offensif ; défensif : 5 yards + premier down automatique
+  passInterference: 0, // défensive : au point de faute ; offensive : 10 yards
   facemask: 15,
+  roughingThePasser: 15,
+  intentionalGrounding: 10, // ou au point de faute s'il est plus loin, perte du down
+  unsportsmanlike: 15,
 };
 
 export function createGameState(rules: RulesConfig, sideOf: Record<string, Side> = {}, openingKicker: Side = 0): GameState {
@@ -38,6 +42,8 @@ export function createGameState(rules: RulesConfig, sideOf: Record<string, Side>
     log: [],
     playNumber: 0,
     lastPeriodEnded: 'none',
+    twoMinuteWarned: [false, false],
+    kickoffPenalty: 0,
   };
 }
 
@@ -56,7 +62,9 @@ export function applyCoinToss(state: GameState, receiver: Side, rules: RulesConf
 function setKickoff(state: GameState, kicker: Side, spot: number): void {
   state.nextKind = 'kickoff';
   state.possession = kicker;
-  state.ballOn = spot;
+  // faute antisportive reportée : coup d'envoi reculé (>0) ou avancé (<0) de 15 yards
+  state.ballOn = Math.min(50, Math.max(5, spot - (state.kickoffPenalty ?? 0)));
+  state.kickoffPenalty = 0;
   state.down = 1;
   state.toGo = 10;
   state.clockRunning = false;
@@ -77,14 +85,41 @@ export const leader = (s: GameState): Side | null => (s.score[0] > s.score[1] ? 
 /** Propriétaire « logique » de la possession (pour la prolongation) : l'équipe qui reçoit lors d'un kickoff. */
 const possessionOwner = (s: GameState): Side => (s.nextKind === 'kickoff' ? other(s.possession) : s.possession);
 
-/** Écoulement du chrono entre deux actions, appliqué au moment du snap. */
+/** Two-minute warning (2e et 4e quart-temps) : le chrono s'arrête quand il atteint 2:00 (à l'échelle). */
+function checkTwoMinuteWarning(state: GameState, rules: RulesConfig, before: number, tags: string[]): void {
+  const idx: number = state.quarter === 2 ? 0 : state.quarter === 4 ? 1 : -1;
+  if (idx < 0 || !state.twoMinuteWarned || state.twoMinuteWarned[idx]) return;
+  const tw = twoMinuteSeconds(rules);
+  if (before > tw && state.clock <= tw && state.clock > 0) {
+    state.twoMinuteWarned[idx] = true;
+    state.clockRunning = false;
+    tags.push('TWO_MINUTE_WARNING');
+  }
+}
+
+/** Écoulement du chrono entre deux actions, appliqué au moment du snap (s'arrête au two-minute warning). */
 export function applyRunoff(state: GameState, rules: RulesConfig): number {
   if (!state.clockRunning || state.nextKind !== 'scrimmage') return 0;
   const before = state.clock;
-  state.clock = Math.max(Math.min(state.clock, 1), state.clock - runoffSeconds(rules));
+  let target = Math.max(Math.min(state.clock, 1), state.clock - runoffSeconds(rules));
+  const idx: number = state.quarter === 2 ? 0 : state.quarter === 4 ? 1 : -1;
+  const tw = twoMinuteSeconds(rules);
+  if (idx >= 0 && state.twoMinuteWarned && !state.twoMinuteWarned[idx] && before > tw && target <= tw) {
+    target = tw;
+    state.twoMinuteWarned[idx] = true;
+  }
+  state.clock = target;
   const used = before - state.clock;
   state.teamStats[state.possession].timeOfPossession += used;
   return used;
+}
+
+/** Une sortie en touche arrête-t-elle le chrono ? (NFL : 2 dernières min de la 1re mi-temps, 5 dernières min du match, prolongation) */
+export function outOfBoundsStopsClock(state: GameState, rules: RulesConfig): boolean {
+  if (state.quarter >= 5) return true;
+  if (state.quarter === 2) return state.clock <= twoMinuteSeconds(rules);
+  if (state.quarter === 4) return state.clock <= lateFourthSeconds(rules);
+  return false;
 }
 
 export function callTimeout(state: GameState, team: Side): boolean {
@@ -146,6 +181,7 @@ function applyStats(state: GameState, events: StatEvent[]): void {
         if (e.by) {
           ps(e.by).sacks++;
           ps(e.by).tackles++;
+          ps(e.by).tfl++;
         }
         const t = ts(e.qb);
         if (t) {
@@ -156,6 +192,10 @@ function applyStats(state: GameState, events: StatEvent[]): void {
       }
       case 'tackle':
         ps(e.by).tackles++;
+        if (e.forLoss) ps(e.by).tfl++;
+        break;
+      case 'forcedFumble':
+        ps(e.by).ff++;
         break;
       case 'interception': {
         ps(e.passer).passInt++;
@@ -298,19 +338,24 @@ export function resolvePlay(state: GameState, result: PlayResult, rules: RulesCo
     }
   }
 
-  // Prolongation : mort subite modifiée
+  if (!wasConversion) checkTwoMinuteWarning(state, rules, before.clock, tags);
+
+  // Prolongation (format NFL actuel) : chaque équipe a au moins une possession, puis mort subite
   if (state.ot && !state.finished) {
     const ownerAfter = possessionOwner(state);
     const scored = state.score[0] !== scoreBefore[0] || state.score[1] !== scoreBefore[1];
     const completedBefore = state.ot.possessionsCompleted;
     if (ownerAfter !== ownerBefore) state.ot.possessionsCompleted++;
-    if (scored) {
-      const fg = tags.includes('FG_GOOD');
-      if (!fg) finish(state, tags);
-      else if (completedBefore > 0 || ownerBefore !== state.ot.firstPossessor) {
-        if (leader(state) !== null) finish(state, tags);
-      }
-    } else if (state.ot.possessionsCompleted >= 2 && leader(state) !== null) {
+    const lead = leader(state);
+    if (tags.includes('SAFETY') || tags.includes('DEFENSIVE_TD') || tags.includes('DEFENSIVE_TWO_PT')) {
+      // un score de la défense met fin à la prolongation
+      if (lead !== null) finish(state, tags);
+    } else if (completedBefore === 0) {
+      // première possession : TD ou FG, l'adversaire aura sa possession
+    } else if (scored && lead !== null) {
+      // deuxième possession ou mort subite : prendre l'avantage termine le match (pas de transformation)
+      finish(state, tags);
+    } else if (state.ot.possessionsCompleted >= 2 && lead !== null && state.nextKind !== 'conversion') {
       finish(state, tags);
     }
   }
@@ -513,7 +558,7 @@ function applyOutcome(state: GameState, r: PlayResult, rules: RulesConfig): stri
       scoreSafety(state, offense, rules, tags);
       return tags;
     }
-    state.clockRunning = !r.outOfBounds;
+    state.clockRunning = !(r.outOfBounds && outOfBoundsStopsClock(state, rules));
     advanceDowns(state, Math.min(99, Math.round(spotForP)), tags);
     return tags;
   }
@@ -575,6 +620,29 @@ function enforceLivePenalty(state: GameState, r: PlayResult, pen: PenaltyCall, r
     if (state.nextKind === 'conversion') state.toGo = 100 - state.ballOn;
     return tags;
   }
+  if (pen.type === 'holding' && pen.against !== offense) {
+    // retenue défensive : 5 yards depuis la ligne de mêlée + premier down automatique
+    const dist = Math.min(5, Math.floor((100 - state.ballOn) / 2));
+    state.teamStats[pen.against].penaltyYds += dist;
+    if (state.nextKind === 'conversion') {
+      state.ballOn = Math.min(99, state.ballOn + dist);
+      state.toGo = 100 - state.ballOn;
+      return tags;
+    }
+    state.teamStats[offense].firstDowns++;
+    setFirstDown(state, offense, state.ballOn + dist);
+    tags.push('FIRST_DOWN');
+    return tags;
+  }
+  if (pen.type === 'passInterference' && pen.against === offense) {
+    // interférence offensive : 10 yards depuis le point précédent, tentative rejouée
+    const dist = Math.min(10, Math.floor(state.ballOn / 2));
+    state.ballOn = clampSpot(state.ballOn - dist);
+    state.toGo += dist;
+    state.teamStats[offense].penaltyYds += dist;
+    if (state.nextKind === 'conversion') state.toGo = 100 - state.ballOn;
+    return tags;
+  }
   if (pen.type === 'passInterference' && pen.against !== offense) {
     let spot = pen.spot ?? state.ballOn + 5;
     if (spot >= 100) spot = 99;
@@ -590,8 +658,24 @@ function enforceLivePenalty(state: GameState, r: PlayResult, pen: PenaltyCall, r
     tags.push('FIRST_DOWN');
     return tags;
   }
-  if (pen.type === 'facemask' && pen.against !== offense) {
-    // L'action est validée puis 15 yards ajoutés au point d'arrivée
+  if (pen.type === 'intentionalGrounding' && pen.against === offense) {
+    // perte du down + 10 yards, ou au point de faute s'il est plus loin ; dans l'en-but : safety
+    const foul = pen.spot ?? state.ballOn;
+    if (foul <= 0) {
+      scoreSafety(state, offense, rules, tags);
+      return tags;
+    }
+    const newSpot = Math.min(foul, state.ballOn - 10);
+    state.teamStats[offense].penaltyYds += state.ballOn - Math.max(1, newSpot);
+    if (newSpot <= 0) {
+      scoreSafety(state, offense, rules, tags);
+      return tags;
+    }
+    advanceDowns(state, newSpot, tags);
+    return tags;
+  }
+  if ((pen.type === 'facemask' || pen.type === 'roughingThePasser' || pen.type === 'unsportsmanlike') && pen.against !== offense) {
+    // faute personnelle de la défense : l'action est validée puis 15 yards et premier down automatique
     const t = applyOutcome(state, r, rules);
     tags.push(...t);
     if (state.possession === offense && state.nextKind === 'scrimmage') {
@@ -599,8 +683,26 @@ function enforceLivePenalty(state: GameState, r: PlayResult, pen: PenaltyCall, r
       state.teamStats[pen.against].penaltyYds += dist;
       setFirstDown(state, offense, state.ballOn + dist);
       if (!tags.includes('FIRST_DOWN')) tags.push('FIRST_DOWN');
+    } else if (state.nextKind === 'conversion' && state.possession === offense) {
+      // l'attaque a marqué : la pénalité est reportée sur le coup d'envoi suivant (botteur avancé de 15 yards)
+      state.kickoffPenalty = -15;
+    } else if (state.nextKind === 'kickoff' && state.possession === offense) {
+      state.ballOn = Math.min(50, state.ballOn + 15);
     }
     state.clockRunning = false;
+    return tags;
+  }
+  if (pen.type === 'unsportsmanlike' && pen.against === offense) {
+    const t = applyOutcome(state, r, rules);
+    tags.push(...t);
+    if (state.nextKind === 'scrimmage' && state.possession === offense) {
+      const dist = Math.min(15, Math.floor(state.ballOn / 2));
+      state.ballOn = clampSpot(state.ballOn - dist);
+      state.toGo += dist;
+      state.teamStats[offense].penaltyYds += dist;
+    } else if (state.nextKind === 'kickoff' || state.nextKind === 'conversion') {
+      state.kickoffPenalty = 15;
+    }
     return tags;
   }
   // pénalité inattendue : on applique simplement l'action

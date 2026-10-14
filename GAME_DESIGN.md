@@ -15,20 +15,24 @@ Règlement unique de type « pro », centralisé :
 | Règle | Valeur |
 |---|---|
 | Joueurs | 11 contre 11 |
-| Durée | 4 quarts-temps de **1, 3 ou 5 min** (réglable ; 3 par défaut), changement de côté à chaque quart-temps |
+| Durée | 4 quarts-temps de **1, 3, 5 ou 15 min** (réglable ; 3 par défaut, 15 = durée NFL réelle), changement de côté à chaque quart-temps |
 | Downs | 4 tentatives pour 10 yards ; « goal to go » près de l'en-but ; perte de balle sur downs |
 | Points | TD 6, extra point 1 (tiré du 15), conversion à 2 points (du 2), field goal 3, safety 2 |
 | Coups d'envoi | du 35, touchback au 25, sortie en touche → 40 ; free kick du 20 après un safety |
 | Punts | touchback au 20, arrêt de volée (fair catch) |
 | Field goal manqué | ballon à l'adversaire au point du coup de pied (minimum le 20) |
-| Chrono | s'arrête sur passe incomplète, sortie en touche, score, changement de possession, pénalité, temps mort ; écoulement entre les actions proportionnel à la durée du quart-temps |
+| Chrono | s'arrête sur passe incomplète, score, changement de possession, pénalité, temps mort ; **sortie en touche** : arrêt seulement dans les 2 dernières minutes du 2e QT, les 5 dernières du 4e et en prolongation (seuils mis à l'échelle de la durée choisie), sinon le chrono repart ; écoulement entre les actions proportionnel à la durée du quart-temps |
+| Two-minute warning | arrêt automatique du chrono à 2:00 (à l'échelle) des 2e et 4e QT ; l'écoulement entre actions ne peut pas le franchir |
+| Chrono de jeu | 40 s pour snapper quand l'utilisateur attaque (affiché ⏱, rouge sous 10 s) ; dépassement = retard de jeu (−5). Désactivable dans les paramètres |
 | Temps morts | 3 par mi-temps (2 en prolongation) |
-| Pénalités | faux départ (−5), hors-jeu (+5), holding (−10, down rejoué), interférence de passe défensive (au point de faute + 1er down), facemask (+15 après l'action, 1er down) ; règle de la demi-distance ; acceptation/refus automatique au profit de l'équipe lésée ; fautes compensées |
-| Prolongation | mort subite modifiée : un TD sur la 1re possession gagne ; un FG donne une possession à l'adversaire ; ensuite le premier score gagne. Égalité possible en saison régulière, pas en playoffs |
+| Pénalités | faux départ (−5), hors-jeu (+5), retard de jeu (−5), holding offensif (−10, down rejoué), **holding défensif (+5 et 1er down automatique)**, interférence défensive (au point de faute + 1er down ; au 1 si dans l'en-but), **interférence offensive (−10, down rejoué)**, facemask et **contact illégal sur le passeur** (+15 après l'action, 1er down), **passe volontairement au sol** (perte du down, recul de 10 yards ou au point de la passe ; safety si dans l'en-but ; uniquement dans la zone du tackle box), **comportement antisportif** (15 yards, reportés sur le coup d'envoi si un score a lieu) ; règle de la demi-distance ; acceptation/refus automatique au profit de l'équipe lésée ; fautes compensées |
+| Prolongation | règle NFL actuelle : **chaque équipe a au moins une possession** (même après un TD sur la première) ; si l'égalité persiste ensuite, mort subite. Un safety ou un TD défensif termine immédiatement le match. Saison régulière : une période (durée réduite), égalité possible ; playoffs : périodes de la durée d'un quart-temps, jamais d'égalité |
 | Intérieur de l'en-but | touchback sur interception/récupération dans son propre en-but, safety si le porteur y est plaqué |
 
-Non implémenté (documenté dans `ROADMAP.md`) : two-minute warning, onside kick, coup de pied contré, challenge vidéo,
-pénalités rares (intentional grounding, roughing the passer…).
+Statistiques défensives : plaquages, **plaquages pour perte (TFL)**, sacks, interceptions, **fumbles provoqués (FF)**, passes déviées.
+
+Non implémenté (documenté dans `ROADMAP.md`) : onside kick, coup de pied contré, challenge vidéo, chrono de jeu de 25 s
+après temps mort, conversion défensive à 2 points sur retour (le tag existe, la simulation ne la produit pas encore).
 
 ## 3. Machine à états du match (`src/match/MatchController.ts`)
 

@@ -12,7 +12,7 @@ import {
   applyCoinToss, applyRunoff, attackDir, callTimeout, createGameState, leader, lineToGain, resolvePlay, setConversionType,
 } from '../rules/engine';
 import { playerImpact } from '../rules/stats';
-import { other, type GameState, type PlayResult, type Side } from '../rules/types';
+import { emptyResult, other, type GameState, type PlayResult, type Side } from '../rules/types';
 import { PlaySim } from '../sim/PlaySim';
 import { kickoffCoverage, kickReturnUnit, selectPersonnel } from '../sim/personnel';
 import { DIFFICULTIES, emptyInput, type Difficulty, type PlaySetup, type SimEvent, type SimInput, type SimKind } from '../sim/types';
@@ -39,6 +39,8 @@ export interface MatchOptions {
   userKicks?: boolean;
   lockedPlayerId?: string | null;
   plans?: [GamePlan, GamePlan];
+  /** Chrono de jeu (40 s) pour l'attaque contrôlée par l'utilisateur : retard de jeu à l'expiration. */
+  playClock?: boolean;
   /** Mode sans interface : pas de temps morts d'affichage. */
   headless?: boolean;
 }
@@ -72,6 +74,9 @@ export class MatchController {
   recentCalls: [string[], string[]] = [[], []];
   fatigue = new Map<string, number>();
   paused = false;
+  /** Secondes restantes au chrono de jeu (null = inactif). */
+  playClock: number | null = null;
+  readonly usePlayClock: boolean;
   /** Entraînement / tutoriel : permet de fixer la situation avant chaque action. */
   practiceHook: ((s: GameState) => void) | null = null;
   private accumulator = 0;
@@ -88,6 +93,7 @@ export class MatchController {
     this.userKicks = opts.userKicks ?? true;
     this.lockedPlayerId = opts.lockedPlayerId ?? null;
     this.plans = opts.plans ?? [DEFAULT_GAMEPLAN, DEFAULT_GAMEPLAN];
+    this.usePlayClock = (opts.playClock ?? false) && this.userSide !== null;
     const sideOf: Record<string, Side> = {};
     for (const p of home.roster) sideOf[p.id] = 0;
     for (const p of away.roster) sideOf[p.id] = 1;
@@ -126,6 +132,14 @@ export class MatchController {
   update(dt: number, input: SimInput = emptyInput()): void {
     if (this.paused || this.phase === 'MatchFinished') return;
     this.phaseTime += dt;
+    // chrono de jeu : l'attaque de l'utilisateur doit snapper avant 40 s, sinon retard de jeu
+    if (this.playClock !== null && (this.phase === 'PlaySelection' || this.phase === 'PreSnap')) {
+      this.playClock -= dt;
+      if (this.playClock <= 0) {
+        this.delayOfGame();
+        return;
+      }
+    }
     switch (this.phase) {
       case 'PreSnap': {
         if (!this.sim) return;
@@ -231,7 +245,26 @@ export class MatchController {
       }
     }
     this.setPhase('PlaySelection');
+    this.playClock = this.usePlayClock && s.nextKind === 'scrimmage' && s.possession === this.userSide ? 40 : null;
     this.aiSelectAll();
+  }
+
+  /** Retard de jeu : 5 yards contre l'attaque, la tentative est rejouée. */
+  private delayOfGame(): void {
+    const s = this.state;
+    this.playClock = null;
+    const r = emptyResult('scrimmage', s.possession, s.ballOn);
+    r.preSnapPenalty = { type: 'delayOfGame', against: s.possession };
+    r.summary = { key: 'penalty.delayOfGame' };
+    this.bus.emit({ type: 'sim', event: { type: 'flag', penalty: 'delayOfGame' } });
+    this.bus.emit({ type: 'sim', event: { type: 'whistle' } });
+    const tags = resolvePlay(s, r, this.rules);
+    this.lastTags = tags;
+    this.lastResult = r;
+    this.bus.emit({ type: 'resolved', tags, result: r });
+    this.offCall = null;
+    this.defCall = null;
+    this.setPhase('PlayReview');
   }
 
   private aiSelectAll(): void {
@@ -367,6 +400,7 @@ export class MatchController {
   /** Snap (bouton « Hike » de l'utilisateur ou automatique). */
   snap(): boolean {
     if (this.phase !== 'PreSnap' || !this.sim) return false;
+    this.playClock = null;
     applyRunoff(this.state, this.rules);
     this.sim.snap();
     if (this.sim.phase === 'dead') this.setPhase('BallDead');

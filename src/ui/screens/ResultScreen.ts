@@ -60,7 +60,7 @@ export class ResultScreen implements Screen {
       <tr><th>Passes</th><th>C/T · yds · TD · INT</th></tr>${top((x) => x.passAtt, (x) => `${x.passComp}/${x.passAtt} · ${x.passYds} · ${x.passTD} · ${x.passInt}`, 2)}
       <tr><th>Courses</th><th>Tent. · yds · TD</th></tr>${top((x) => x.rushYds + x.rushAtt, (x) => `${x.rushAtt} · ${x.rushYds} · ${x.rushTD}`)}
       <tr><th>Réceptions</th><th>Réc. · yds · TD</th></tr>${top((x) => x.recYds + x.rec, (x) => `${x.rec} · ${x.recYds} · ${x.recTD}`)}
-      <tr><th>Défense</th><th>Plaq. · sacks · INT</th></tr>${top((x) => x.tackles + x.sacks * 2 + x.ints * 3, (x) => `${x.tackles} · ${x.sacks} · ${x.ints}`)}
+      <tr><th>Défense</th><th>Plaq. (TFL) · sacks · INT · FF</th></tr>${top((x) => x.tackles + x.tfl + x.sacks * 2 + x.ints * 3 + x.ff * 2, (x) => `${x.tackles} (${x.tfl}) · ${x.sacks} · ${x.ints} · ${x.ff}`)}
     </table>`;
     const continueBtn = this.cfg.context === 'league' ? `<button class="btn primary" data-action="continue">${t('result.continue')}</button>` : `<button class="btn primary" data-action="rematch">${t('result.rematch')}</button><button class="btn" data-action="menu">${t('result.menu')}</button>`;
     this.el.innerHTML = `

@@ -7,8 +7,8 @@ import { emptyInput, type SimInput } from '../../src/sim/types';
 const teams = createDefaultTeams(1);
 
 /** Prépare un match où l'utilisateur (côté 0) est en attaque ou en défense sur une action de scrimmage. */
-function setup(offense: boolean, offPlay = 'quickSlants', defPlay = '43cover2') {
-  const mc = new MatchController(teams[0], teams[1], { userSide: 0, seed: 11, rules: { ...DEFAULT_RULES, quarterMinutes: 5 } });
+function setup(offense: boolean, offPlay = 'quickSlants', defPlay = '43cover2', playClock = false) {
+  const mc = new MatchController(teams[0], teams[1], { userSide: 0, seed: 11, playClock, rules: { ...DEFAULT_RULES, quarterMinutes: 5 } });
   mc.practiceHook = (s) => {
     s.nextKind = 'scrimmage';
     s.possession = offense ? 0 : 1;
@@ -128,5 +128,19 @@ describe('chaque commande a un effet', () => {
     let guard = 0;
     while (!sim.kicked && guard++ < 300) step(mc);
     expect(sim.kicked).toBe(true);
+  });
+
+  it('chrono de jeu de 40 s : retard de jeu si l’attaque ne snappe pas', () => {
+    const mc = setup(true, 'quickSlants', '43cover2', true);
+    expect(mc.playClock).not.toBeNull();
+    const before = mc.state.ballOn;
+    let flagged = false;
+    mc.bus.on('resolved', ({ tags }) => {
+      if (tags.some((x) => x.startsWith('PENALTY:delayOfGame'))) flagged = true;
+    });
+    let guard = 0;
+    while (!flagged && guard++ < 3000) step(mc, {}, 1);
+    expect(flagged).toBe(true);
+    expect(mc.state.ballOn).toBe(before - 5);
   });
 });

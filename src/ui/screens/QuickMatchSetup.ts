@@ -44,7 +44,7 @@ export class QuickMatchSetup implements Screen {
           <div class="opt-label">${t('setup.difficulty')}</div>
           <div class="opt-row">${chips('diff', ['easy', 'normal', 'hard'], s.difficulty, (v) => t(`diff.${v}`))}</div>
           <div class="opt-label">${t('setup.quarter')}</div>
-          <div class="opt-row">${chips('qm', [1, 3, 5], s.quarterMinutes, (v) => t('setup.minutes', { n: v }))}</div>
+          <div class="opt-row">${chips('qm', [1, 3, 5, 15], s.quarterMinutes, (v) => t('setup.minutes', { n: v }))}</div>
         </div>
         ${this.card(this.away, 'away')}
       </div>`;
@@ -63,7 +63,7 @@ export class QuickMatchSetup implements Screen {
       }
       if (k === 'ctl') this.control = Number(v) as Side;
       if (k === 'diff') s.difficulty = v as typeof s.difficulty;
-      if (k === 'qm') s.quarterMinutes = Number(v) as 1 | 3 | 5;
+      if (k === 'qm') s.quarterMinutes = Number(v) as 1 | 3 | 5 | 15;
       if (k === 'diff' || k === 'qm') this.app.saveSettings();
       if (k === 'start') {
         audio.ui('confirm');

@@ -69,6 +69,10 @@ export class PlaySim {
   private qbThinkTimer = 0;
   private holdingCalled = false;
   private piCalled = false;
+  private defHoldCalled = false;
+  private opiCalled = false;
+  private roughCalled = false;
+  private throwTime = -1;
   private lastInput: SimInput = emptyInput();
 
   constructor(setup: PlaySetup) {
@@ -521,6 +525,7 @@ export class PlaySim {
       this.applyMovement(a, dvx, dvy, sprint, dt);
     }
     this.autoEngage();
+    if (this.phase === 'live' && this.setup.rules.penaltiesEnabled) this.checkLiveFouls(dt);
     this.resolveEngagements(dt);
     this.separate();
     this.updateBall(dt);
@@ -823,6 +828,7 @@ export class PlaySim {
     qb.action = 'throw';
     qb.actionTime = 0;
     this.stats.push({ kind: 'passAtt', passer: qb.player.id });
+    this.throwTime = this.t;
     this.events.push({ type: 'throw', by: qb.idx, target, passType });
     for (const a of this.agents) a.catchAttempted = false;
     // réaction de la défense au lancer
@@ -849,8 +855,19 @@ export class PlaySim {
     }
   }
 
+  /** Le QB est-il dans la zone des tackles (tackle box) ? Hors de cette zone, jeter le ballon en touche est légal. */
+  inTackleBox(qb: Agent): boolean {
+    const p = this.toPlay(qb.x, qb.y);
+    return Math.abs(p.lat) < 4.5 && p.down < 0.5;
+  }
+
   throwAway(qb: Agent): void {
     if (this.thrown) return;
+    if (this.setup.rules.penaltiesEnabled && this.inTackleBox(qb)) {
+      // passe volontairement envoyée au sol depuis la poche : intentional grounding
+      this.penalties.push({ type: 'intentionalGrounding', against: qb.side, spot: this.spotOf(qb.x), playerId: qb.player.id });
+      this.events.push({ type: 'flag', penalty: 'intentionalGrounding' });
+    }
     const sideY = qb.y < W / 2 ? -4 : W + 4;
     const w = this.toPlay(qb.x, qb.y);
     const tx = this.toWorld(w.down + 12, 0).x;
@@ -1563,6 +1580,7 @@ export class PlaySim {
     const fumbleP = (0.005 + relSpeed * 0.0006) * (1.2 - ca.strength / 120) * (c.protect ? 0.25 : 1) * (d.diveTimer > 0 ? 1.2 : 1);
     if (this.rng.chance(fumbleP)) {
       this.events.push({ type: 'fumble', by: c.idx });
+      this.stats.push({ kind: 'forcedFumble', by: d.player.id });
       this.offenseLostAtSpot = c.side === this.offense ? this.spotOf(c.x) : this.offenseLostAtSpot;
       c.down = true;
       this.makeLoose(c.side, c.idx);
@@ -1580,7 +1598,11 @@ export class PlaySim {
     if (sack) {
       this.sackBy = d.idx;
       this.events.push({ type: 'sack', by: d.idx });
-    } else this.stats.push({ kind: 'tackle', by: d.player.id });
+    } else {
+      // plaquage pour perte : porteur de l'attaque arrêté derrière la ligne de mêlée
+      const forLoss = c.side === this.offense && this.setup.kind === 'scrimmage' && this.toPlay(endX, c.y).down < 0;
+      this.stats.push({ kind: 'tackle', by: d.player.id, forLoss });
+    }
     this.events.push({ type: 'tackle', by: d.idx, carrier: c.idx });
     this.finish(c.side, endX, 'tackle');
     return true;
@@ -1721,11 +1743,65 @@ export class PlaySim {
     r.stats = this.stats;
     r.penalties = this.penalties;
     this.result = r;
+    if (reason === 'touchdown' && this.setup.rules.penaltiesEnabled && this.rng.chance(0.015)) {
+      // célébration excessive : comportement antisportif (15 yards sur le coup d'envoi)
+      const celebrant = c ?? this.agents[0];
+      r.penalties.push({ type: 'unsportsmanlike', against: possessor, playerId: celebrant.player.id });
+      this.events.push({ type: 'flag', penalty: 'unsportsmanlike' });
+    }
     if (reason === 'touchdown') {
       for (const a of this.agents) {
         if (a.side === possessor && dist2(a.x, a.y, x, c?.y ?? a.y) < 12) {
           a.action = 'celebrate';
           a.actionTime = Math.random() * 0.3;
+        }
+      }
+    }
+  }
+
+  /** Fautes pendant le jeu : retenue défensive, interférence offensive, contact illégal sur le passeur. */
+  private checkLiveFouls(dt: number): void {
+    const b = this.ball;
+    // retenue défensive : un défenseur en individuelle accroche son receveur avant la passe
+    if (!this.defHoldCalled && this.isPassPlay && !this.thrown && this.t > 1) {
+      for (const d of this.agents) {
+        if (d.offense || d.defAssign !== 'man' || d.manTarget < 0) continue;
+        const r = this.agents[d.manTarget];
+        if (dist2(d.x, d.y, r.x, r.y) > 0.75) continue;
+        if (this.rng.chance(dt * 0.035 * (1.4 - d.player.attrs.awareness / 100))) {
+          this.defHoldCalled = true;
+          this.penalties.push({ type: 'holding', against: d.side, playerId: d.player.id });
+          this.events.push({ type: 'flag', penalty: 'holding' });
+          break;
+        }
+      }
+    }
+    // interférence offensive : le receveur visé repousse son défenseur juste avant l'arrivée du ballon
+    if (!this.opiCalled && b.state === 'air' && b.flight === 'pass' && b.target >= 0) {
+      const r = this.agents[b.target];
+      const remaining = b.flightTime - b.airTime;
+      if (remaining < 0.5 && remaining > 0) {
+        for (const d of this.agents) {
+          if (d.side === r.side || d.down) continue;
+          if (dist2(d.x, d.y, r.x, r.y) < 0.6 && this.rng.chance(0.004)) {
+            this.opiCalled = true;
+            this.penalties.push({ type: 'passInterference', against: r.side, playerId: r.player.id });
+            this.events.push({ type: 'flag', penalty: 'offensivePI' });
+            break;
+          }
+        }
+      }
+    }
+    // contact illégal sur le passeur : coup porté au QB après le lâcher du ballon
+    if (!this.roughCalled && this.throwTime >= 0 && this.t - this.throwTime > 0.25 && this.t - this.throwTime < 1.0 && this.qbIdx >= 0) {
+      const qb = this.agents[this.qbIdx];
+      for (const d of this.agents) {
+        if (d.offense || d.down || d.engagedWith.length) continue;
+        if (dist2(d.x, d.y, qb.x, qb.y) < 0.95 && Math.hypot(d.vx, d.vy) > 4.5 && this.rng.chance(0.06)) {
+          this.roughCalled = true;
+          this.penalties.push({ type: 'roughingThePasser', against: d.side, playerId: d.player.id });
+          this.events.push({ type: 'flag', penalty: 'roughingThePasser' });
+          break;
         }
       }
     }

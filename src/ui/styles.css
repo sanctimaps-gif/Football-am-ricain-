@@ -222,3 +222,5 @@ button { touch-action: manipulation; -webkit-touch-callout: none; }
 .setting label { min-width: 0; overflow-wrap: anywhere; }
 .setting .opt-row { flex: 0 1 auto; justify-content: flex-end; }
 .controls { z-index: 2; }
+.downbar .pclock { font-variant-numeric: tabular-nums; }
+.downbar .pclock.low { color: #ff5a4f; font-weight: 800; }

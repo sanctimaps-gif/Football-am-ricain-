@@ -4,7 +4,7 @@ import type { Difficulty } from '../sim/types';
 
 export interface Settings {
   language: 'fr' | 'en';
-  quarterMinutes: 1 | 3 | 5;
+  quarterMinutes: 1 | 3 | 5 | 15;
   difficulty: Difficulty['id'];
   quality: Quality;
   targetFps: 30 | 60;
@@ -15,6 +15,7 @@ export interface Settings {
   sensitivity: number;
   leftHanded: boolean;
   penalties: boolean;
+  playClock: boolean;
   volumes: Volumes;
 }
 
@@ -31,6 +32,7 @@ export const DEFAULT_SETTINGS: Settings = {
   sensitivity: 1,
   leftHanded: false,
   penalties: true,
+  playClock: true,
   volumes: { master: 0.8, music: 0.5, sfx: 0.8, crowd: 0.6 },
 };
 
@@ -38,7 +40,7 @@ export const DEFAULT_SETTINGS: Settings = {
 export function sanitizeSettings(raw: unknown): Settings {
   const s = { ...DEFAULT_SETTINGS, ...(typeof raw === 'object' && raw ? (raw as Partial<Settings>) : {}) };
   if (!['fr', 'en'].includes(s.language)) s.language = 'fr';
-  if (![1, 3, 5].includes(s.quarterMinutes)) s.quarterMinutes = 3;
+  if (![1, 3, 5, 15].includes(s.quarterMinutes)) s.quarterMinutes = 3;
   if (!['easy', 'normal', 'hard'].includes(s.difficulty)) s.difficulty = 'normal';
   if (!['low', 'medium', 'high'].includes(s.quality)) s.quality = 'medium';
   if (![30, 60].includes(s.targetFps)) s.targetFps = 60;
@@ -49,6 +51,6 @@ export function sanitizeSettings(raw: unknown): Settings {
     v[k] = typeof v[k] === 'number' && isFinite(v[k]) ? Math.min(1, Math.max(0, v[k])) : DEFAULT_SETTINGS.volumes[k];
   }
   s.volumes = v;
-  for (const b of ['autoSwitch', 'aimAssist', 'userKicks', 'leftHanded', 'penalties'] as const) s[b] = !!s[b];
+  for (const b of ['autoSwitch', 'aimAssist', 'userKicks', 'leftHanded', 'penalties', 'playClock'] as const) s[b] = !!s[b];
   return s;
 }

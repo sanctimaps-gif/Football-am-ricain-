@@ -9,24 +9,27 @@ Environnement : conteneur Linux sans GPU, Node 22, Chromium 141 (Playwright 1.56
 |---|---|---|
 | Vérification de types | `npm run typecheck` | ✅ 0 erreur |
 | Build de production | `npm run build` | ✅ (≈760 ko JS, 210 ko gzip) |
-| Unitaires — règles | `npm test` | ✅ 43/43 |
+| Unitaires — règles | `npm test` | ✅ 58/58 |
 | Unitaires — ligue, marché, carrière, sauvegardes | `npm test` | ✅ 13/13 |
-| Intégration — matchs pilotés, IA, ligue + sauvegarde | `npm test` | ✅ 7/7 |
+| Intégration — matchs pilotés, IA, ligue + sauvegarde | `npm test` | ✅ 14/14 (matchs + commandes) |
 | End-to-end Chromium (4 résolutions) | `npm run e2e` | ✅ 6/6 |
 | Unity (C#, NUnit EditMode) | — | ⬜ **non exécuté** (Unity / .NET indisponibles) |
 | Appareil Android/iOS réel | — | ⬜ **non exécuté** |
 
 ## Tests unitaires (`tests/unit`)
 
-**Règles (43)** : gain de terrain et downs ; premier down ; goal to go ; perte de terrain ; turnover on downs ;
+**Règles (58)** : gain de terrain et downs ; premier down ; goal to go ; perte de terrain ; turnover on downs ;
 passe incomplète (ballon à la LOS, chrono arrêté) ; sortie en touche ; touchdown 6 pts + conversion ; pas de double
 comptage après la fin ; extra point ; conversion à 2 points réussie/ratée ; field goal réussi/manqué (spot du coup de
 pied) ; safety + free kick du 20 ; interception (spot, touchback dans l'en-but, TD défensif) ; kickoff (touchback 25,
 retour) ; punt avec fair catch ; faux départ ; hors-jeu donnant un premier down ; demi-distance ; holding accepté/refusé ;
 interférence de passe ; facemask ; fautes compensées ; écoulement du chrono ; temps morts ; fin de quart-temps ;
 mi-temps (bon botteur, temps morts réinitialisés) ; fin de match ; conversion jouée à 0:00 ; prolongation ; égalité sans
-prolongation ; changement de côté ; prolongation : TD gagnant, FG puis possession adverse, FG égalisateur puis mort
-subite ; statistiques passeur/receveur ; statistiques annulées par une pénalité acceptée.
+prolongation ; changement de côté ; prolongation : TD sur la 1re possession puis possession adverse obligatoire, safety
+gagnant, FG puis possession adverse, FG égalisateur puis mort subite, règles de playoffs ; holding défensif (+5, 1er
+down), interférence offensive (−10), contact illégal sur le passeur (+15, 1er down), passe volontairement au sol (perte
+du down / safety dans l'en-but), retard de jeu, antisportif reporté sur le coup d'envoi (±15) ; sortie en touche selon
+le moment du match ; two-minute warning (une seule fois, écoulement plafonné) ; TFL et fumbles provoqués ; statistiques passeur/receveur ; statistiques annulées par une pénalité acceptée.
 
 **Ligue (13)** : round-robin sans doublon ; classement V/D/N/PF/PA et tri ; saison complète → playoffs → champion →
 intersaison → draft (IA + utilisateur) → saison 2 ; plafond salarial ; offre inférieure refusée puis acceptée (prime
@@ -36,6 +39,7 @@ données corrompues → valeurs par défaut ; version de sauvegarde future ignor
 
 ## Tests d'intégration (`tests/integration`)
 
+* Chaque commande tactile a un effet (8 tests), dont le chrono de jeu de 40 s qui déclenche un retard de jeu (−5).
 * Match complet piloté comme un humain (choix d'actions, snap, passes, courses, punts, FG, conversions, jauge de kick) :
   le match se termine, le score reconstruit depuis le journal correspond au score final, chaque TD est suivi d'une
   conversion, toutes les phases de la machine à états sont traversées.
