@@ -6,7 +6,7 @@ const PREFIX = 'gd.';
 
 export interface SlotMeta {
   slot: number;
-  kind: 'season' | 'coach' | 'franchise' | 'playerCareer';
+  kind: 'season' | 'coach' | 'franchise' | 'playerCareer' | 'club' | 'cup';
   title: string;
   teamId: string;
   season: number;
@@ -31,6 +31,8 @@ export interface QuickMatchRecord {
 export interface Profile {
   quickMatches: QuickMatchRecord[];
   tutorialDone: string[];
+  /** Défis réussis : meilleur nombre d'étoiles par défi. */
+  challenges: Record<string, number>;
 }
 
 /** Migrations : version N → N+1. Ajouter une entrée à chaque changement de schéma. */
@@ -86,6 +88,7 @@ export class SaveManager {
     return {
       quickMatches: Array.isArray(p?.quickMatches) ? p!.quickMatches.slice(-50) : [],
       tutorialDone: Array.isArray(p?.tutorialDone) ? p!.tutorialDone : [],
+      challenges: p?.challenges && typeof p.challenges === 'object' && !Array.isArray(p.challenges) ? Object.fromEntries(Object.entries(p.challenges).filter(([, v]) => typeof v === 'number')) : {},
     };
   }
 

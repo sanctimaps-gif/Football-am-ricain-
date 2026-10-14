@@ -2,6 +2,7 @@ import { Rng, hashString } from '../core/rng';
 import { FIRST_NAMES, LAST_NAMES } from './names';
 import { overallFor } from './ratings';
 import { TEAM_TEMPLATES, type TeamTemplate } from './teams';
+import { leagueDef, NATIONS } from './world';
 import type { Attributes, Player, Position, Team } from './types';
 
 type AttrProfile = Partial<Record<keyof Attributes, number>>;
@@ -137,6 +138,15 @@ export function generateRoster(teamId: string, seed: number, tier: number): Play
   return roster;
 }
 
+/** Couleur claire (luminance perçue élevée) : utilisée pour éviter deux maillots blancs. */
+export function isLight(hex: string): boolean {
+  const n = parseInt(hex.replace('#', ''), 16);
+  const r = (n >> 16) & 255;
+  const g = (n >> 8) & 255;
+  const b = n & 255;
+  return 0.299 * r + 0.587 * g + 0.114 * b > 186;
+}
+
 export function teamFromTemplate(t: TeamTemplate, leagueSeed = 1): Team {
   // écart de niveau resserré pour garder des matchs disputés
   const roster = generateRoster(t.id, hashString(t.id) ^ leagueSeed, 1 + (t.tier - 1) * 0.5);
@@ -151,7 +161,7 @@ export function teamFromTemplate(t: TeamTemplate, leagueSeed = 1): Team {
     uniform: {
       helmet: t.primary,
       homeJersey: t.primary,
-      awayJersey: '#F4F4F4',
+      awayJersey: isLight(t.primary) ? t.secondary : '#F4F4F4',
       homePants: t.secondary === '#FFFFFF' ? '#E8E8E8' : t.secondary,
       awayPants: t.primary,
       numberColor: t.secondary,
@@ -183,4 +193,10 @@ export function teamOverall(team: Team): number {
     }
   }
   return n ? Math.round(sum / n) : 50;
+}
+
+/** Équipes d'une ligue régionale (ou des sélections nationales avec l'id « nations »). */
+export function createTeamsFor(groupId: string, seed = 1): Team[] {
+  const templates = groupId === 'nations' ? NATIONS : leagueDef(groupId).teams;
+  return templates.map((t) => teamFromTemplate(t, seed));
 }

@@ -87,18 +87,42 @@ déclenchent une action réelle.
 * **Difficulté** : facile / normal / difficile — agit sur les temps de réaction, la précision, le plaquage, la réception et
   la puissance de l'IA (jamais sur la connaissance des entrées de l'utilisateur).
 
-## 7. Modes de jeu
+## 7. Monde et modes de jeu (structure inspirée des jeux de football sans licences)
 
-| Mode | Contenu implémenté |
-|---|---|
-| Match rapide | 16 équipes, choix du côté, difficulté, durée ; rejouer ; statistiques ; historique sauvegardé |
-| Mode spectateur | IA contre IA en 3D |
-| Saison | calendrier (6/10/15 semaines), classement (tiebreaks : % victoires, confrontation directe, différence), playoffs (4 ou 8 équipes), finale, champion, MVP, saison suivante |
-| Carrière de coach | + profondeur de poste, recrutement d'agents libres, prolongations, libérations, draft (3 tours, serpentin), plan de jeu, objectifs de la direction, confiance/réputation, licenciement et offres d'autres clubs |
-| Franchise | + création du club (nom, ville, abréviation, couleurs, logo original à partir de formes/glyphe, maillots domicile/extérieur), échanges validés par la valeur et le plafond salarial, installations (entraînement, médical, stade), prix des billets, trésorerie, historique et records |
-| Carrière de joueur | création (nom, poste, numéro, teint, taille, visière), draft, place dans la hiérarchie, entraînement hebdomadaire, objectifs de saison, points de compétence, promotion titulaire, récompenses ; pendant les matchs le joueur créé est **verrouillé** comme joueur contrôlé quand il est sur le terrain |
-| Entraînement & tutoriel | 7 étapes guidées validées par de vrais événements de jeu (déplacement, passe, réception, downs, plaquage, couverture, précision), puis entraînement libre sans chrono ni enjeu |
-| Multijoueur en ligne | **Non implémenté** (aucun bouton). Architecture prête : moteur de règles pur et contrôleur indépendant du rendu |
+### Clubs sans licence officielle (`src/data/world.ts`)
+
+Le jeu ne possède **aucune licence**. Comme les jeux de sport qui représentent des clubs réels sans en avoir les droits,
+les clubs portent un **nom de remplacement « Ville + couleur »** (ex. « Kansas City Red », « Madrid White ») : seuls la
+ville et une couleur dominante sont repris. Aucun surnom officiel, logo, police, nom de stade ou nom de joueur réel n'est
+utilisé : logos vectoriels génériques (forme + initiales), stades génériques (« Buffalo Stadium »), joueurs générés.
+Les noms de joueurs réels, même légèrement modifiés, ne sont **pas** utilisés (droit à l'image des personnes).
+
+| Ligue | Clubs | Conférences |
+|---|---|---|
+| Ligue Pro Américaine | 32 | Américaine / Nationale |
+| Ligue Canadienne | 9 | Est / Ouest |
+| Ligue Européenne | 12 | Ouest / Est |
+| Ligue Francophone | 16 (clubs fictifs d'origine) | Atlantique / Horizon |
+| Ligue Asie-Pacifique | 8 | Nord / Sud |
+| Ligue Latino-Américaine | 8 | Nord / Sud |
+| Ligue Africaine | 8 | Ouest / Est |
+| Sélections nationales | 16 | — |
+
+### Modes
+
+| Mode | Ce qui progresse | Contenu implémenté |
+|---|---|---|
+| Carrière de club | le club, son effectif, ses résultats sur plusieurs saisons | choix de la ligue puis du club ; **départ en 3e division même avec un grand club** ; seuls **3 joueurs** de l'effectif d'origine sont gardés (au choix), le reste est généré ; pyramide de 3 divisions de 10 clubs : D3 → les **4 premiers montent**, D2 → 3 montées / 4 relégations, D1 → playoffs du titre (top 4) / 3 relégations ; divisions inférieures générées (« Ville + couleur ») ; revenus selon la division ; **marché des transferts** : recherche par poste, achat aux clubs de la division ou à des clubs étrangers contre une indemnité, vente avec offres des clubs ; agents libres, composition (profondeur de poste), plan de jeu, draft, contrats |
+| Carrière de joueur | le parcours individuel | création, draft, hiérarchie, entraînement, objectifs, points de compétence, récompenses ; joueur verrouillé pendant les matchs |
+| Championnats | les résultats dans une ligue | choix parmi les 7 ligues (ou **ligue personnalisée** de 6 à 20 clubs de n'importe quelle ligue), calendrier, classement par conférence, playoffs, saisons suivantes |
+| Coupes & tournois | la progression dans une compétition | coupe nationale de chaque ligue (élimination directe), Coupe des Champions (16 meilleurs clubs du monde, quotas par ligue), Coupe d'Europe des clubs, Coupe d'Amérique du Nord, Copa Latina, Coupe d'Afrique, Coupe d'Asie-Pacifique, Coupe des Nations (16 sélections), Ligue des Nations européenne, Gold Bowl ; phases de groupes (tirage par chapeaux, 2 premiers qualifiés) puis tableau (A1–B2, B1–A2…) |
+| Défis & événements | la capacité à renverser une situation | 8 « moments » (drive de la victoire, goal-line stand, field goal de la gagne, remontée, sans temps mort, fermer le match, finale des Nations, petit poucet) + **événement de la semaine** tiré au sort (le même pour tous pendant 7 jours) ; quarts de 15 min, chrono réel ; 1 à 3 étoiles selon la difficulté, sauvegardées |
+| Match rapide | — | 109 équipes : ligue choisie séparément pour chaque camp |
+| Carrière de coach / Franchise | — | modes d'origine conservés (objectifs de la direction, création de club, échanges, installations) |
+| Mode spectateur, tutoriel | — | inchangés |
+| Multijoueur en ligne | — | **Non implémenté** (aucun bouton) |
+
+Non implémenté : coupes féminines (pas de modèles de joueuses), mode « Moment Challenge » en ligne, licences officielles.
 
 Les matchs non joués par l'utilisateur sont simulés par `quickSim.ts` : action par action avec **le même moteur de règles**
 (downs, score, chrono, pénalités, prolongation) ; seules les issues des actions sont tirées statistiquement des notes.

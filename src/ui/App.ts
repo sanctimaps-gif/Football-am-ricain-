@@ -1,5 +1,5 @@
 import { audio } from '../audio/AudioEngine';
-import { createDefaultTeams } from '../data/generator';
+import { createTeamsFor, createDefaultTeams } from '../data/generator';
 import type { Team } from '../data/types';
 import { setLanguage } from '../i18n';
 import { GameRenderer } from '../render/Renderer';
@@ -27,6 +27,7 @@ export class App {
   profile: Profile;
   /** Équipes de la ligue par défaut (match rapide, mode spectateur). */
   readonly teams: Team[];
+  private teamCache = new Map<string, Team[]>();
   private screen: Screen | null = null;
   private last = performance.now();
   private acc = 0;
@@ -36,6 +37,16 @@ export class App {
   showFps = new URLSearchParams(location.search).has('fps');
   /** Exposé pour les tests automatisés. */
   measuredFps = 0;
+
+  /** Équipes d'une ligue (générées une fois par session, effectifs déterministes). */
+  teamsOf(groupId: string): Team[] {
+    let t = this.teamCache.get(groupId);
+    if (!t) {
+      t = groupId === 'fra' ? this.teams : createTeamsFor(groupId, 1);
+      this.teamCache.set(groupId, t);
+    }
+    return t;
+  }
 
   constructor(root: HTMLElement, canvas: HTMLCanvasElement) {
     this.root = root;

@@ -1,3 +1,4 @@
+import { displayName } from '../../data/world';
 import { audio } from '../../audio/AudioEngine';
 import { fullName } from '../../data/types';
 import { formatClock, t } from '../../i18n';
@@ -62,7 +63,7 @@ export class ResultScreen implements Screen {
       <tr><th>Réceptions</th><th>Réc. · yds · TD</th></tr>${top((x) => x.recYds + x.rec, (x) => `${x.rec} · ${x.recYds} · ${x.recTD}`)}
       <tr><th>Défense</th><th>Plaq. (TFL) · sacks · INT · FF</th></tr>${top((x) => x.tackles + x.tfl + x.sacks * 2 + x.ints * 3 + x.ff * 2, (x) => `${x.tackles} (${x.tfl}) · ${x.sacks} · ${x.ints} · ${x.ff}`)}
     </table>`;
-    const continueBtn = this.cfg.context === 'league' ? `<button class="btn primary" data-action="continue">${t('result.continue')}</button>` : `<button class="btn primary" data-action="rematch">${t('result.rematch')}</button><button class="btn" data-action="menu">${t('result.menu')}</button>`;
+    const continueBtn = (this.cfg.context === 'league' || this.cfg.context === 'challenge') ? `<button class="btn primary" data-action="continue">${t('result.continue')}</button>` : `<button class="btn primary" data-action="rematch">${t('result.rematch')}</button><button class="btn" data-action="menu">${t('result.menu')}</button>`;
     this.el.innerHTML = `
       <div class="topbar"><h1>${t('result.title')}${this.cfg.title ? ' — ' + esc(this.cfg.title) : ''}</h1>${continueBtn}</div>
       <div class="row grow" style="align-items:stretch;gap:12px;min-height:0">
@@ -74,7 +75,7 @@ export class ResultScreen implements Screen {
           </div>
           ${verdict ? `<div class="verdict">${verdict}</div>` : ''}
           ${s.quarter > 4 ? '<div class="muted">après prolongation</div>' : ''}
-          ${mvp ? `<div class="panel" style="text-align:center;margin-top:8px"><div class="opt-label">${t('result.mvp')}</div><div style="font-size:20px;font-weight:900">#${mvp.player.number} ${esc(fullName(mvp.player))}</div><div class="muted">${esc(mc.teams[mvp.side].name)} · ${mvp.player.position}</div></div>` : ''}
+          ${mvp ? `<div class="panel" style="text-align:center;margin-top:8px"><div class="opt-label">${t('result.mvp')}</div><div style="font-size:20px;font-weight:900">#${mvp.player.number} ${esc(fullName(mvp.player))}</div><div class="muted">${esc(displayName(mc.teams[mvp.side]))} · ${mvp.player.position}</div></div>` : ''}
         </div>
         <div class="panel col grow" style="min-height:0">
           <div class="tabs"><button class="chip ${this.tab === 'team' ? 'on' : ''}" data-action="tab:team">Équipes</button><button class="chip ${this.tab === 'players' ? 'on' : ''}" data-action="tab:players">Joueurs</button></div>

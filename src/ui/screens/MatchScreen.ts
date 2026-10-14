@@ -1,3 +1,5 @@
+import type { GameState } from '../../rules/types';
+import { isLight } from '../../data/generator';
 import { audio } from '../../audio/AudioEngine';
 import type { GamePlan } from '../../ai/playcaller';
 import { DEFENSIVE_PLAYS, type OffensivePlay } from '../../data/playbook';
@@ -24,7 +26,9 @@ export interface MatchConfig {
   lockedPlayerId?: string | null;
   plans?: [GamePlan, GamePlan];
   playoff?: boolean;
-  context: 'quick' | 'league' | 'spectator';
+  context: 'quick' | 'league' | 'spectator' | 'challenge';
+  /** Situation de départ imposée (défis) : appliquée une fois, sans pile ou face. */
+  setup?: (s: GameState) => void;
   /** Appelé quand l'utilisateur quitte l'écran de résultat. */
   onExit: (mc: MatchController | null, completed: boolean) => void;
   title?: string;
@@ -87,7 +91,15 @@ export class MatchScreen implements Screen {
     audio.stopMusic();
     audio.startCrowd();
     audio.cheer(0.8);
+    if (cfg.setup) {
+      const setup = cfg.setup;
+      this.mc.practiceHook = (s) => {
+        this.mc.practiceHook = null;
+        setup(s);
+      };
+    }
     this.mc.start();
+    if (cfg.setup && this.mc.phase === 'CoinToss') this.mc.resolveCoinToss('heads');
     this.banner(`${cfg.away.abbr} @ ${cfg.home.abbr}`, true, 2.2);
     this.tickerText = `${cfg.home.stadium.name} · ${cfg.home.city}${cfg.title ? ' · ' + cfg.title : ''}`;
   }
@@ -99,9 +111,9 @@ export class MatchScreen implements Screen {
       <button class="hud-btn to" data-action="timeout">${t('hud.timeout')}</button>
       <button class="hud-btn help" data-action="help">?</button>
       <div class="scorebug">
-        <div class="tm home" style="background:${h.colors.primary}"><span class="poss"></span><span>${esc(h.abbr)}</span><span class="sc">0</span></div>
+        <div class="tm home" style="background:${isLight(h.colors.primary) ? h.colors.secondary : h.colors.primary}"><span class="poss"></span><span>${esc(h.abbr)}</span><span class="sc">0</span></div>
         <div class="mid"><div class="clk">0:00</div><div class="q">QT1</div><div class="tos"></div></div>
-        <div class="tm away" style="background:${a.colors.primary}"><span class="poss"></span><span>${esc(a.abbr)}</span><span class="sc">0</span></div>
+        <div class="tm away" style="background:${isLight(a.colors.primary) ? a.colors.secondary : a.colors.primary}"><span class="poss"></span><span>${esc(a.abbr)}</span><span class="sc">0</span></div>
       </div>
       <div class="downbar"></div>
       <div class="ticker" style="display:none"></div>`;
@@ -209,6 +221,7 @@ export class MatchScreen implements Screen {
       if (phase === 'PreSnap') this.controls.passType = this.controls.passType ?? 'touch';
     });
     this.mc.bus.on('coinToss', (e) => {
+      if (this.cfg.setup && this.mc.state.quarter <= 4) return; // défi : pas de pile ou face affiché
       const res = t(e.result === 'heads' ? 'coin.heads' : 'coin.tails');
       if (this.mc.userSide !== null) this.toast(`${res} — ${e.winner === this.mc.userSide ? t('coin.won') : t('coin.lost')}`, 2.5);
     });

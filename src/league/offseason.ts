@@ -2,7 +2,9 @@ import { Rng } from '../core/rng';
 import { buildDepthChart, generatePlayer, salaryFor } from '../data/generator';
 import { overall, overallFor } from '../data/ratings';
 import { ALL_POSITIONS, fullName, type Attributes, type Player, type Position, type Team } from '../data/types';
+import { applyPromotions } from './pyramid';
 import { roundRobin } from './schedule';
+import { generateTransferList } from './transfers';
 import { seasonMvp, standings, teamById } from './league';
 import { POSITION_NEEDS, ROSTER_MIN, type League } from './types';
 
@@ -200,8 +202,10 @@ export function runAiDraft(l: League, stopAtUser = true): void {
 }
 
 /** Nouvelle saison : complète les effectifs, régénère le calendrier. */
-export function startNewSeason(l: League): void {
+export function startNewSeason(l: League): string[] {
   const rng = new Rng(l.seed + l.season * 55);
+  // carrière de club : montées et relégations avant de recomposer la division
+  const msgs = l.pyramid ? applyPromotions(l) : [];
   // les équipes IA complètent leur effectif avec des agents libres
   for (const t of l.teams) {
     if (t.id === l.userTeamId) continue;
@@ -230,8 +234,11 @@ export function startNewSeason(l: League): void {
   l.playoffs = [];
   l.seasonStats = {};
   l.schedule = roundRobin(l.teams.map((t) => t.id), l.weeks, l.seed + l.season);
+  if (l.mode === 'club') l.transferList = generateTransferList(l);
+  for (const m of [...msgs].reverse()) l.news.unshift(m);
   l.news.unshift(`Début de la saison ${l.season}.`);
   l.news = l.news.slice(0, 40);
+  return msgs;
 }
 
 /** Retire les joueurs les plus faibles si l'effectif dépasse le maximum (équipes IA). */

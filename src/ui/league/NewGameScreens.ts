@@ -1,5 +1,6 @@
 import { audio } from '../../audio/AudioEngine';
-import { createDefaultTeams, teamFromTemplate, teamOverall } from '../../data/generator';
+import { createDefaultTeams, createTeamsFor, teamFromTemplate, teamOverall } from '../../data/generator';
+import { ALL_CLUBS, displayName, leagueDef, LEAGUES } from '../../data/world';
 import { TEAM_TEMPLATES, type TeamTemplate } from '../../data/teams';
 import type { LogoShape, Team } from '../../data/types';
 import { CAREER_POSITIONS, createPlayerCareer, type CreatedPlayer } from '../../league/career';
@@ -15,7 +16,7 @@ import { LeagueHub, MODE_TITLES } from './LeagueHub';
 const PALETTE = ['#1B2A6B', '#0A7EA4', '#6B0F2B', '#2E2E2E', '#E85D04', '#F5C400', '#00A6A6', '#8A1538', '#0B3D91', '#5A189A', '#4CC9F0', '#D62828', '#2B9348', '#2A9D8F', '#FFFFFF', '#C0C0C0', '#111111', '#F4A261'];
 const SHAPES: LogoShape[] = ['shield', 'circle', 'diamond', 'hexagon', 'star', 'square'];
 
-function startLeague(app: App, l: League): void {
+export function startLeague(app: App, l: League): void {
   const slot = app.saves.freeSlot();
   if (slot === null) {
     app.go(new SavesScreen(app));
@@ -27,10 +28,14 @@ function startLeague(app: App, l: League): void {
   hub.saveNow(); // première sauvegarde automatique
 }
 
-/** Choix de l'équipe et du format (saison, carrière de coach). */
+/** Choix de la ligue, de l'équipe et du format (championnat, carrière de coach, ligue personnalisée). */
 export class TeamPickScreen implements Screen {
   readonly el: HTMLElement;
-  private teams: Team[] = createDefaultTeams(Date.now() >>> 0);
+  private group = 'fra';
+  private seed = Date.now() >>> 0;
+  private cache = new Map<string, Team[]>();
+  private custom = new Set<string>();
+  private customStep: 'select' | 'pick' = 'select';
   private pick = 0;
   private weeks = 10;
   private playoff: 2 | 4 = 4;
@@ -41,17 +46,66 @@ export class TeamPickScreen implements Screen {
     this.render();
   }
 
+  private teams(): Team[] {
+    const key = this.group === 'custom' ? 'custom:' + [...this.custom].sort().join(',') : this.group;
+    let t = this.cache.get(key);
+    if (!t) {
+      if (this.group === 'custom') {
+        t = ALL_CLUBS.filter((x) => this.custom.has(x.id)).map((x) => teamFromTemplate(x, this.seed));
+        t.forEach((x, i) => (x.conference = (i % 2) as 0 | 1));
+      } else t = createTeamsFor(this.group, this.seed);
+      this.cache.set(key, t);
+    }
+    return t;
+  }
+
+  private maxWeeks(): number {
+    return Math.max(2, (this.teams().length - 1) * 2);
+  }
+
   private render(): void {
     const chips = <T extends string | number>(k: string, vals: T[], cur: T, f: (v: T) => string) => vals.map((v) => `<button class="chip ${v === cur ? 'on' : ''}" data-action="${k}:${v}">${f(v)}</button>`).join('');
-    this.el.innerHTML = `<div class="topbar"><button class="btn ghost" data-action="back">‹ Retour</button><h1>${MODE_TITLES[this.mode]} — choisissez votre équipe</h1><button class="btn primary" data-action="start">Commencer ▶</button></div>
-      <div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:6px"><span class="opt-label">Semaines</span>${chips('weeks', [6, 10, 15], this.weeks, (v) => String(v))}<span class="opt-label">Playoffs</span>${chips('po', [2, 4], this.playoff, (v) => `${v * 2} équipes`)}<span class="opt-label">Quart-temps</span>${chips('qm', [1, 3, 5, 15], this.app.settings.quarterMinutes, (v) => `${v} min`)}</div>
-      <div class="scroll grow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px">${this.teams.map((tm, i) => `<button class="team-card" style="--c1:${tm.colors.primary};--c2:${i === this.pick ? '#ffcc1a' : tm.colors.secondary};min-height:120px;${i === this.pick ? 'outline:3px solid #ffcc1a' : ''}" data-action="pick:${i}">${logoSvg(tm.logo, tm.colors, 46)}<div class="name" style="font-size:18px">${esc(tm.name)}</div><div class="city">${esc(tm.city)}</div><div class="ovr">GÉN ${teamOverall(tm)}</div></button>`).join('')}</div>`;
+    const leagues = LEAGUES.map((d) => `<button class="chip ${d.id === this.group ? 'on' : ''}" data-action="league:${d.id}">${d.flag} ${esc(d.short)}</button>`).join('') + `<button class="chip ${this.group === 'custom' ? 'on' : ''}" data-action="league:custom">✏️ Personnalisée</button>`;
+    const selecting = this.group === 'custom' && this.customStep === 'select';
+    let grid: string;
+    if (selecting) {
+      grid = LEAGUES.map((d) => `<div class="opt-label" style="grid-column:1/-1">${d.flag} ${esc(d.name)}</div>` + d.teams.map((x) => `<button class="team-card" style="--c1:${x.primary};--c2:${this.custom.has(x.id) ? '#ffcc1a' : x.secondary};min-height:84px;${this.custom.has(x.id) ? 'outline:3px solid #ffcc1a' : ''}" data-action="toggle:${x.id}">${logoSvg({ shape: x.logoShape, glyph: x.glyph, stripes: false }, { primary: x.primary, secondary: x.secondary, accent: x.accent }, 34)}<div class="city" style="font-size:14px;text-align:center">${esc(displayName(x))}</div></button>`).join('')).join('');
+    } else {
+      const teams = this.teams();
+      if (this.pick >= teams.length) this.pick = 0;
+      grid = teams.map((tm, i) => `<button class="team-card" style="--c1:${tm.colors.primary};--c2:${i === this.pick ? '#ffcc1a' : tm.colors.secondary};min-height:120px;${i === this.pick ? 'outline:3px solid #ffcc1a' : ''}" data-action="pick:${i}">${logoSvg(tm.logo, tm.colors, 46)}<div class="name" style="font-size:17px">${esc(displayName(tm))}</div><div class="ovr">GÉN ${teamOverall(tm)}</div></button>`).join('');
+    }
+    const weekOpts = [6, 8, 10, 11, 14, 17].filter((w) => w <= this.maxWeeks());
+    if (!weekOpts.includes(this.weeks)) this.weeks = weekOpts.includes(10) ? 10 : weekOpts[weekOpts.length - 1];
+    const title = this.mode === 'season' ? 'Championnats' : MODE_TITLES[this.mode];
+    const primary = selecting ? `<button class="btn primary" data-action="customNext">Suivant (${this.custom.size}) ▶</button>` : '<button class="btn primary" data-action="start">Commencer ▶</button>';
+    this.el.innerHTML = `<div class="topbar"><button class="btn ghost" data-action="back">‹ Retour</button><h1>${title}</h1>${primary}</div>
+      <div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:4px">${leagues}</div>
+      ${selecting ? '<div class="muted" style="font-size:14px">Ligue personnalisée : touchez 6 à 20 clubs de n’importe quelle ligue, puis « Suivant » pour choisir le vôtre.</div>' : `<div class="row" style="flex-wrap:wrap;gap:6px;margin-bottom:6px"><span class="opt-label">Semaines</span>${chips('weeks', weekOpts, this.weeks, (v) => String(v))}<span class="opt-label">Playoffs</span>${chips('po', [2, 4], this.playoff, (v) => `${v * 2} équipes`)}<span class="opt-label">Quart-temps</span>${chips('qm', [1, 3, 5, 15], this.app.settings.quarterMinutes, (v) => `${v} min`)}${this.group === 'custom' ? '<button class="chip" data-action="customEdit">✏️ Modifier la sélection</button>' : ''}</div>`}
+      <div class="scroll grow" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;align-content:start">${grid}</div>`;
   }
 
   private action(a: string): void {
     audio.ui();
     const [k, v] = a.split(':');
     if (k === 'back') return this.app.go(new MainMenu(this.app));
+    if (k === 'league') {
+      this.group = v;
+      this.pick = 0;
+      if (v !== 'custom') this.weeks = leagueDef(v).defaultWeeks;
+      else this.customStep = this.custom.size >= 6 ? 'pick' : 'select';
+    }
+    if (k === 'toggle') {
+      if (this.custom.has(v)) this.custom.delete(v);
+      else if (this.custom.size < 20) this.custom.add(v);
+      else void showMessage('20 clubs maximum.');
+    }
+    if (k === 'customNext') {
+      if (this.custom.size < 6) return void showMessage('Choisissez au moins 6 clubs.');
+      this.customStep = 'pick';
+      this.pick = 0;
+    }
+    if (k === 'customEdit') this.customStep = 'select';
     if (k === 'pick') this.pick = Number(v);
     if (k === 'weeks') this.weeks = Number(v);
     if (k === 'po') this.playoff = Number(v) as 2 | 4;
@@ -60,7 +114,11 @@ export class TeamPickScreen implements Screen {
       this.app.saveSettings();
     }
     if (k === 'start') {
-      const l = createLeague({ mode: this.mode, userTeamId: this.teams[this.pick].id, teams: this.teams, weeks: this.weeks, playoffTeams: this.playoff, quarterMinutes: this.app.settings.quarterMinutes });
+      const teams = this.teams();
+      const playoff = teams.length < 8 ? 2 : this.playoff;
+      const l = createLeague({ mode: this.mode, userTeamId: teams[this.pick].id, teams, seed: this.seed, weeks: this.weeks, playoffTeams: playoff, quarterMinutes: this.app.settings.quarterMinutes, name: this.group === 'custom' ? 'Ligue personnalisée' : leagueDef(this.group).name });
+      l.leagueId = this.group;
+      l.conferenceNames = this.group === 'custom' ? ['Conférence A', 'Conférence B'] : leagueDef(this.group).conferenceNames;
       return startLeague(this.app, l);
     }
     this.render();

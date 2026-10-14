@@ -1,7 +1,10 @@
 # Gridiron Dynasty
 
 Jeu de football américain en 3D conçu pour téléphone en **mode paysage**, avec match jouable aux commandes tactiles,
-IA offensive et défensive, règles complètes et modes saison / carrière de coach / franchise / carrière de joueur.
+IA offensive et défensive, règles NFL et une structure de modes inspirée des jeux de football sans licences :
+109 équipes (7 ligues régionales aux clubs « Ville + couleur » + 16 sélections), **carrière de club** (départ en 3e
+division avec 3 joueurs, montées, transferts), carrière de joueur, championnats (dont ligue personnalisée), coupes et
+tournois, défis et événement de la semaine, carrière de coach, franchise.
 
 > Nom de travail modifiable dans `src/core/config.ts` (`GAME_NAME`).
 

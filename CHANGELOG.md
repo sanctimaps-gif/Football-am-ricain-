@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.3.0 — monde et modes façon « football league »
+
+### Ajouté
+- 7 ligues régionales (USA 32 clubs, Canada, Europe, Francophone, Asie-Pacifique, Amérique latine, Afrique) et
+  16 sélections nationales. Clubs sans licence nommés « Ville + couleur », logos et stades génériques.
+- Carrière de club : départ en 3e division avec 3 joueurs gardés, pyramide D3 → D2 → D1 (montées, relégations,
+  playoffs du titre), revenus par division, marché des transferts (achat, vente, recherche par poste).
+- Championnats par ligue et ligue personnalisée (6 à 20 clubs au choix).
+- Coupes et tournois : 10 compétitions (coupes nationales, continentales, des Champions, des Nations), groupes et
+  élimination directe.
+- Défis « moments » (8) et événement de la semaine, étoiles sauvegardées.
+- Match rapide : choix de la ligue pour chaque équipe.
+
+### Modifié
+- Menu principal réorganisé (9 modes) ; maillot extérieur coloré pour les clubs dont la couleur principale est claire.
+
 ## 0.2.0 — règles NFL appliquées
 
 ### Ajouté

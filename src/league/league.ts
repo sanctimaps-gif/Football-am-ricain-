@@ -9,7 +9,8 @@ import { DEFAULT_RULES, PLAYOFF_RULES } from '../rules/config';
 import { playerImpact, type PlayerGameStats } from '../rules/stats';
 import type { GameState } from '../rules/types';
 import { advancePlayoffs, computeStandings, roundRobin, seedPlayoffs, sortStandings, type PlayoffGame, type ScheduledGame } from './schedule';
-import { SALARY_CAP, type Finance, type League, type LeagueMode } from './types';
+import { knockoutFromGroups, nextKnockoutRound, seededKnockout } from './knockout';
+import { DIVISIONS, SALARY_CAP, type Finance, type League, type LeagueMode } from './types';
 
 export interface CreateLeagueOptions {
   mode: LeagueMode;
@@ -82,6 +83,13 @@ export const teamById = (l: League, id: string): Team => {
   return t;
 };
 
+/** Nom et abréviation d'une équipe, même si elle n'est plus dans la division active (carrière de club). */
+export function teamInfo(l: League, id: string): { name: string; abbr: string } {
+  const t = l.teams.find((x) => x.id === id) ?? l.pyramid?.templates[id];
+  if (!t) return { name: '—', abbr: '—' };
+  return { name: t.name ? `${t.city} ${t.name}` : t.city, abbr: t.abbr };
+}
+
 export const userTeam = (l: League): Team => teamById(l, l.userTeamId);
 
 export function standings(l: League) {
@@ -139,9 +147,10 @@ function settleGameFinances(l: League, homeId: string): void {
   const f = l.finances[homeId];
   const team = teamById(l, homeId);
   if (!f) return;
-  const attendance = Math.round(team.stadium.capacity * Math.min(1, (0.45 + f.fanSupport / 200) * (0.85 + f.facilities.stadium * 0.04)) * Math.min(1.1, 95 / Math.max(30, f.ticketPrice)));
+  const factor = l.pyramid ? DIVISIONS[l.pyramid.level].incomeFactor : 1;
+  const attendance = Math.round(factor ** 0.5 * team.stadium.capacity * Math.min(1, (0.45 + f.fanSupport / 200) * (0.85 + f.facilities.stadium * 0.04)) * Math.min(1.1, 95 / Math.max(30, f.ticketPrice)));
   const tickets = (attendance * f.ticketPrice) / 1000;
-  const tv = 9000;
+  const tv = 9000 * factor;
   f.cash += tickets + tv;
   f.seasonRevenue += tickets + tv;
 }
@@ -155,7 +164,8 @@ function weeklyFinances(l: League): void {
     const payroll = team.roster.reduce((t, p) => t + p.contract.salary, 0);
     const facilities = (f.facilities.training + f.facilities.medical + f.facilities.stadium) * 350;
     const cost = payroll / Math.max(1, l.weeks) + facilities;
-    const income = (130000 + f.fanSupport * 400) / Math.max(1, l.weeks);
+    const factor = l.pyramid ? DIVISIONS[l.pyramid.level].incomeFactor : 1;
+    const income = ((130000 + f.fanSupport * 400) * factor) / Math.max(1, l.weeks);
     f.cash += income - cost;
     f.seasonExpenses += cost;
     f.seasonRevenue += income;
@@ -241,11 +251,49 @@ export function advanceWeek(l: League): void {
       l.week++;
       return;
     }
+    if (l.cup) {
+      l.phase = 'playoffs';
+      l.playoffs = knockoutFromGroups(l.cup.groups ?? [l.teams.map((t) => t.id)], l.schedule);
+      l.week++;
+      const userIn = l.playoffs.some((g) => g.home === l.userTeamId || g.away === l.userTeamId);
+      l.news.unshift(userIn ? '✅ Qualifié pour la phase finale !' : '❌ Éliminé en phase de groupes : la phase finale se joue sans vous.');
+      return;
+    }
+    if (l.pyramid) {
+      const order = standings(l).map((r) => r.teamId);
+      if (!DIVISIONS[l.pyramid.level].playoffs) {
+        l.champion = order[0];
+        l.phase = 'offseason';
+        l.news.unshift(`🏆 ${teamInfo(l, order[0]).name} termine champion de ${DIVISIONS[l.pyramid.level].name}.`);
+        return;
+      }
+      l.phase = 'playoffs';
+      l.playoffs = seededKnockout(order.slice(0, 4));
+      l.week++;
+      const userIn = l.playoffs.some((g) => g.home === l.userTeamId || g.away === l.userTeamId);
+      l.news.unshift(userIn ? '🏆 Votre club dispute les playoffs pour le titre !' : 'Votre club ne dispute pas les playoffs pour le titre.');
+      return;
+    }
     l.phase = 'playoffs';
     l.playoffs = seedPlayoffs(computeStandings(l.teams, l.schedule), l.schedule, l.playoffTeams);
     l.week++;
     const userIn = l.playoffs.some((g) => g.home === l.userTeamId || g.away === l.userTeamId);
     l.news.unshift(userIn ? '🏆 Votre équipe est qualifiée pour les playoffs !' : 'Votre équipe est éliminée : les playoffs se jouent sans vous.');
+    return;
+  }
+  if (l.phase === 'playoffs' && (l.cup || l.pyramid)) {
+    const next = nextKnockoutRound(l.playoffs);
+    if (next.length) {
+      l.playoffs.push(...next);
+      l.week++;
+      return;
+    }
+    const final = l.playoffs.find((g) => g.id === 'final');
+    if (final?.played) {
+      l.champion = final.winner;
+      l.phase = l.cup ? 'done' : 'offseason';
+      l.news.unshift(`🏆 ${teamInfo(l, final.winner!).name} remporte ${l.cup ? l.cup.name : 'le titre'} !`);
+    }
     return;
   }
   if (l.phase === 'playoffs') {

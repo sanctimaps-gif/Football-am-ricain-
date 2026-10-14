@@ -1,3 +1,4 @@
+import { displayName } from '../../data/world';
 import { overall } from '../../data/ratings';
 import { fullName, type Attributes, type Player, type Team } from '../../data/types';
 import { t } from '../../i18n';
@@ -10,7 +11,7 @@ export const ATTR_KEYS: (keyof Attributes)[] = ['speed', 'acceleration', 'agilit
 export const money = (k: number): string => (Math.abs(k) >= 1000 ? `${(k / 1000).toFixed(1)} M$` : `${Math.round(k)} k$`);
 
 export function teamLabel(tm: Team, size = 26): string {
-  return `<span class="row" style="gap:6px;display:inline-flex">${logoSvg(tm.logo, tm.colors, size)}<span>${esc(tm.city)} ${esc(tm.name)}</span></span>`;
+  return `<span class="row" style="gap:6px;display:inline-flex">${logoSvg(tm.logo, tm.colors, size)}<span>${esc(displayName(tm))}</span></span>`;
 }
 
 export function playerRow(p: Player, extra = '', action = ''): string {

@@ -15,7 +15,8 @@ Tout est généré par le code du dépôt :
 | Icône | SVG original (`public/favicon.svg`) |
 | Polices | Polices système (pile `Barlow Condensed`, `Roboto Condensed`, `Arial Narrow`, sans-serif) — aucune police embarquée |
 | Noms de joueurs | Combinaisons aléatoires de prénoms/noms courants (`src/data/names.ts`), aucune personne réelle visée |
-| Équipes, villes-nom, stades | Fictifs et originaux (`src/data/teams.ts`) ; aucune marque ni licence de ligue professionnelle |
+| Équipes, villes-nom, stades | Ligue Francophone : fictifs et originaux (`src/data/teams.ts`). Autres ligues (`src/data/world.ts`) : noms de remplacement « Ville + couleur » (nom de ville + couleur dominante), sans surnom officiel, logo, police ni nom de stade réel ; stades génériques « Ville + Stadium/Field/Dome… ». Aucune licence de ligue professionnelle. |
+| Sélections nationales | Nom du pays, couleurs du drapeau et code pays à 2 lettres ; aucun logo de fédération |
 
 ## Bibliothèques
 

@@ -1,8 +1,9 @@
 import type { GamePlan } from '../ai/playcaller';
+import type { TeamTemplate } from '../data/teams';
 import type { Player, Position, SeasonStatLine, Team } from '../data/types';
 import type { PlayoffGame, ScheduledGame } from './schedule';
 
-export type LeagueMode = 'season' | 'coach' | 'franchise' | 'playerCareer';
+export type LeagueMode = 'season' | 'coach' | 'franchise' | 'playerCareer' | 'club' | 'cup';
 export type LeaguePhase = 'regular' | 'playoffs' | 'offseason' | 'draft' | 'done';
 
 export interface Facilities {
@@ -61,6 +62,39 @@ export interface LeagueRecords {
   rushYdsSeason: { value: number; name: string; season: number } | null;
 }
 
+export type DivisionLevel = 1 | 2 | 3;
+
+export interface DivisionInfo {
+  level: DivisionLevel;
+  name: string;
+  /** Places de montée (en haut du classement) et de relégation (en bas). */
+  promote: number;
+  relegate: number;
+  /** Playoffs pour le titre (première division). */
+  playoffs: boolean;
+  /** Part des revenus (droits TV, sponsors) par rapport à la première division. */
+  incomeFactor: number;
+}
+
+/** Pyramide de la carrière de club : seule la division de l'utilisateur est jouée en détail. */
+export interface Pyramid {
+  leagueId: string;
+  level: DivisionLevel;
+  /** Membres de chaque division (ids d'équipes). */
+  members: Record<DivisionLevel, string[]>;
+  /** Modèles des équipes hors de la division active (effectif régénéré quand elles la rejoignent). */
+  templates: Record<string, TeamTemplate>;
+  log: { season: number; level: DivisionLevel; rank: number; moved: 'up' | 'down' | 'stay' }[];
+}
+
+/** Coupe ou tournoi (élimination directe, éventuellement précédée de groupes). */
+export interface CupState {
+  id: string;
+  name: string;
+  icon: string;
+  groups: string[][] | null;
+}
+
 export interface League {
   version: 1;
   id: string;
@@ -92,6 +126,13 @@ export interface League {
   career: CareerState | null;
   news: string[];
   nextPlayerId: number;
+  /** Ligue régionale d'origine (world.ts). */
+  leagueId?: string;
+  conferenceNames?: [string, string];
+  pyramid?: Pyramid;
+  cup?: CupState;
+  /** Joueurs proposés par des clubs étrangers (carrière de club). */
+  transferList?: Player[];
 }
 
 export const ROSTER_MIN = 45;
@@ -101,3 +142,11 @@ export const SALARY_CAP = 200000; // milliers $ (200 M$)
 export const POSITION_NEEDS: Record<Position, number> = {
   QB: 3, RB: 3, FB: 1, WR: 6, TE: 3, C: 2, OG: 4, OT: 4, DE: 4, DT: 4, LB: 6, CB: 5, FS: 2, SS: 2, K: 1, P: 1,
 };
+
+/** Pyramide de la carrière de club : 3 divisions de 10 équipes. */
+export const DIVISIONS: Record<DivisionLevel, DivisionInfo> = {
+  1: { level: 1, name: 'Première division', promote: 0, relegate: 3, playoffs: true, incomeFactor: 1 },
+  2: { level: 2, name: 'Deuxième division', promote: 3, relegate: 4, playoffs: false, incomeFactor: 0.5 },
+  3: { level: 3, name: 'Troisième division', promote: 4, relegate: 0, playoffs: false, incomeFactor: 0.3 },
+};
+export const DIVISION_SIZE = 10;

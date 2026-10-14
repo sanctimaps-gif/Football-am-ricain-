@@ -224,3 +224,13 @@ button { touch-action: manipulation; -webkit-touch-callout: none; }
 .controls { z-index: 2; }
 .downbar .pclock { font-variant-numeric: tabular-nums; }
 .downbar .pclock.low { color: #ff5a4f; font-weight: 800; }
+.menu-grid.wide { grid-template-columns: 1.25fr repeat(3, 1fr); grid-template-rows: repeat(3, 1fr); gap: 8px; }
+.menu-grid.wide .tile.hero { grid-row: span 3; }
+.menu-grid.wide .tile:not(.hero) { font-size: clamp(13px, 3.5vh, 20px); padding: 10px; overflow-wrap: normal; word-break: normal; letter-spacing: 0; }
+.menu-grid.wide .tile .ico { font-size: clamp(18px, 5vh, 28px); top: 6px; right: 8px; }
+.card-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); grid-auto-rows: auto; gap: 10px; align-content: start; }
+.card-grid .tile { display: block; padding: 10px; height: auto; min-height: 118px; overflow: visible; font-size: clamp(14px, 3.4vh, 19px); gap: 4px; }
+.card-grid .tile small { font-size: 12.5px; }
+.card-grid .tile .ico { position: static; font-size: 26px; }
+@media (max-height: 460px) { .menu-grid.wide .tile:not(.hero) small { display: none; } }
+.card-grid .tile .ico { display: block; } .card-grid .tile > .row { margin: 4px 0; } .card-grid .tile small { margin-top: 3px; }

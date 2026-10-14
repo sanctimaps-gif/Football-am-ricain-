@@ -4,10 +4,15 @@ import { overall } from '../../data/ratings';
 import { ALL_POSITIONS, fullName, type Attributes, type Position } from '../../data/types';
 import { t } from '../../i18n';
 import { careerAwards, careerPlayer, depthRank, spendSkillPoint, train, updateCareerAfterGame, type TrainingFocus } from '../../league/career';
-import { advanceWeek, simulateWeek, standings, teamById, userGame, userTeam, weekComplete, recordResult } from '../../league/league';
+import { teamInfo, advanceWeek, simulateWeek, standings, teamById, userGame, userTeam, weekComplete, recordResult } from '../../league/league';
 import { capSpace, evaluateTrade, executeTrade, extendContract, facilityCost, payroll, releasePlayer, signFreeAgent, upgradeFacility } from '../../league/market';
+import { buyPlayer, saleOffer, searchPlayers, sellPlayer } from '../../league/transfers';
+import { divisionObjective, rankZone } from '../../league/pyramid';
+import { computeStandings, sortStandings, type StandingRow } from '../../league/schedule';
+import { displayName } from '../../data/world';
+import { showConfirm } from '../dialog';
 import { draftOnClock, draftPlayer, endSeason, runAiDraft, scoutValue, startNewSeason } from '../../league/offseason';
-import type { League } from '../../league/types';
+import { DIVISIONS, type DivisionLevel, type League } from '../../league/types';
 import type { MatchController } from '../../match/MatchController';
 import type { SlotMeta } from '../../save/SaveManager';
 import type { Side } from '../../rules/types';
@@ -18,10 +23,10 @@ import { MainMenu } from '../screens/MainMenu';
 import { MatchScreen } from '../screens/MatchScreen';
 import { ATTR_KEYS, money, playerCard, playerRow, teamLabel } from './common';
 
-type Tab = 'home' | 'schedule' | 'standings' | 'playoffs' | 'roster' | 'market' | 'draft' | 'finance' | 'trade' | 'plan' | 'career' | 'history';
+type Tab = 'home' | 'schedule' | 'standings' | 'playoffs' | 'roster' | 'transfers' | 'market' | 'draft' | 'finance' | 'trade' | 'plan' | 'career' | 'history';
 
 const MODE_TITLES: Record<League['mode'], string> = {
-  season: 'Saison', coach: 'Carrière de coach', franchise: 'Franchise', playerCareer: 'Carrière de joueur',
+  season: 'Championnat', coach: 'Carrière de coach', franchise: 'Franchise', playerCareer: 'Carrière de joueur', club: 'Carrière de club', cup: 'Coupe',
 };
 
 /** Tableau de bord des modes saison / coach / franchise / carrière de joueur. */
@@ -34,6 +39,7 @@ export class LeagueHub implements Screen {
   private tradeGive = new Set<string>();
   private tradeGet = new Set<string>();
   private busy = false;
+  private transferPos: Position | 'ALL' = 'ALL';
 
   constructor(private app: App, private l: League, private slot: number) {
     this.el = el('div', 'screen');
@@ -48,7 +54,7 @@ export class LeagueHub implements Screen {
   private save(): void {
     const l = this.l;
     const meta: SlotMeta = {
-      slot: this.slot, kind: l.mode === 'playerCareer' ? 'playerCareer' : l.mode, title: `${MODE_TITLES[l.mode]} — ${userTeam(l).name}`,
+      slot: this.slot, kind: l.mode, title: `${l.cup ? l.cup.name : MODE_TITLES[l.mode]} — ${displayName(userTeam(l))}`,
       teamId: l.userTeamId, season: l.season, week: l.week, updatedAt: Date.now(),
     };
     this.app.saves.saveSlot(meta, l);
@@ -56,26 +62,36 @@ export class LeagueHub implements Screen {
 
   private tabs(): Tab[] {
     const l = this.l;
-    const tabs: Tab[] = ['home', 'schedule', 'standings'];
+    const tabs: Tab[] = ['home'];
+    if (!l.cup || l.cup.groups) tabs.push('schedule', 'standings');
     if (l.phase === 'playoffs' || l.playoffs.length) tabs.push('playoffs');
     tabs.push('roster');
-    if (l.mode === 'coach' || l.mode === 'franchise') tabs.push('market', 'finance', 'plan');
+    if (l.mode === 'club') tabs.push('transfers');
+    if (l.mode === 'coach' || l.mode === 'franchise' || l.mode === 'club') tabs.push('market', 'finance', 'plan');
     if (l.mode === 'franchise') tabs.push('trade');
-    if (l.phase === 'draft' && (l.mode === 'coach' || l.mode === 'franchise')) tabs.push('draft');
+    if (l.phase === 'draft' && (l.mode === 'coach' || l.mode === 'franchise' || l.mode === 'club')) tabs.push('draft');
+    if (l.cup) return tabs;
     if (l.mode === 'playerCareer') tabs.push('career');
     tabs.push('history');
     return tabs;
   }
 
   private tabLabel(tb: Tab): string {
-    return { home: 'Accueil', schedule: 'Calendrier', standings: 'Classement', playoffs: 'Playoffs', roster: 'Effectif', market: 'Recrutement', draft: 'Draft', finance: 'Contrats & budget', trade: 'Échanges', plan: 'Plan de jeu', career: 'Ma carrière', history: 'Historique' }[tb];
+    const l = this.l;
+    if (l.cup && tb === 'standings') return 'Groupes';
+    if (l.cup && tb === 'playoffs') return 'Phase finale';
+    if (l.pyramid && tb === 'playoffs') return 'Playoffs du titre';
+    return { home: 'Accueil', schedule: 'Calendrier', standings: 'Classement', playoffs: 'Playoffs', transfers: 'Transferts', roster: 'Effectif', market: 'Recrutement', draft: 'Draft', finance: 'Contrats & budget', trade: 'Échanges', plan: 'Plan de jeu', career: 'Ma carrière', history: 'Historique' }[tb];
   }
 
   render(): void {
     const l = this.l;
     const team = userTeam(l);
     if (!this.tabs().includes(this.tab)) this.tab = 'home';
-    const phaseLabel = l.phase === 'regular' ? `Semaine ${l.week}/${l.weeks}` : l.phase === 'playoffs' ? 'Playoffs' : l.phase === 'draft' ? 'Draft' : 'Intersaison';
+    const phaseLabel = l.cup
+      ? (l.phase === 'regular' ? `Groupes · journée ${l.week}/${l.weeks}` : l.phase === 'playoffs' ? 'Phase finale' : 'Terminée')
+      : l.phase === 'regular' ? `Semaine ${l.week}/${l.weeks}` : l.phase === 'playoffs' ? 'Playoffs' : l.phase === 'draft' ? 'Draft' : 'Intersaison';
+    const context = l.cup ? `${l.cup.icon} ${l.cup.name}` : l.pyramid ? `${MODE_TITLES[l.mode]} · ${DIVISIONS[l.pyramid.level].name} · Saison ${l.season}` : `${MODE_TITLES[l.mode]} · Saison ${l.season}`;
     let body = '';
     switch (this.tab) {
       case 'home': body = this.homeTab(); break;
@@ -83,6 +99,7 @@ export class LeagueHub implements Screen {
       case 'standings': body = this.standingsTab(); break;
       case 'playoffs': body = this.playoffsTab(); break;
       case 'roster': body = this.rosterTab(); break;
+      case 'transfers': body = this.transfersTab(); break;
       case 'market': body = this.marketTab(); break;
       case 'draft': body = this.draftTab(); break;
       case 'finance': body = this.financeTab(); break;
@@ -96,7 +113,7 @@ export class LeagueHub implements Screen {
       <div class="topbar">
         <button class="btn ghost" data-action="menu">‹ Menu</button>
         ${logoSvg(team.logo, team.colors, 38)}
-        <h1>${esc(team.city)} ${esc(team.name)} <span class="muted" style="font-size:16px">· ${MODE_TITLES[l.mode]} · Saison ${l.season} · ${phaseLabel}</span></h1>
+        <h1>${esc(displayName(team))} <span class="muted" style="font-size:16px">· ${esc(context)} · ${phaseLabel}</span></h1>
         <button class="btn" data-action="save">💾</button>
       </div>
       <div class="tabs">${this.tabs().map((x) => `<button class="chip ${x === this.tab ? 'on' : ''}" data-action="tab:${x}">${this.tabLabel(x)}</button>`).join('')}</div>
@@ -109,7 +126,7 @@ export class LeagueHub implements Screen {
   private homeTab(): string {
     const l = this.l;
     const g = userGame(l);
-    const row = standings(l).find((r) => r.teamId === l.userTeamId)!;
+    const row = standings(l).find((r) => r.teamId === l.userTeamId);
     let next = '';
     if (l.coach?.fired) {
       next = `<div class="panel"><h3>Vous avez été licencié</h3><div class="muted">Offres disponibles :</div><div class="col">${this.jobOffers().map((id) => `<button class="btn" data-action="job:${id}">${teamLabel(teamById(l, id))} · GÉN ${teamOverall(teamById(l, id))}</button>`).join('')}</div></div>`;
@@ -123,20 +140,34 @@ export class LeagueHub implements Screen {
         <div class="muted">${esc(home.stadium.name)} · GÉN ${teamOverall(home)} vs ${teamOverall(away)}</div>
         <div class="row" style="flex-wrap:nowrap"><button class="btn primary" style="white-space:nowrap" data-action="play">▶ Jouer</button><button class="btn" style="white-space:nowrap" data-action="simulate">Simuler</button></div>
       </div>`;
+    } else if (l.phase === 'done') {
+      const won = l.champion === l.userTeamId;
+      next = `<div class="panel col" style="align-items:center;gap:8px"><div style="font-size:44px">${won ? '🏆' : '🏁'}</div><div style="font-size:22px;font-weight:900;text-align:center">${won ? `Vous remportez ${esc(l.cup?.name ?? 'la compétition')} !` : `Vainqueur : ${l.champion ? teamLabel(teamById(l, l.champion)) : '—'}`}</div><div class="row" style="flex-wrap:nowrap"><button class="btn primary" data-action="menu">Menu principal</button></div></div>`;
     } else if (l.phase === 'regular' || l.phase === 'playoffs') {
-      next = `<div class="panel col" style="align-items:center"><div class="muted">${l.phase === 'playoffs' ? 'Votre équipe ne joue pas cette semaine des playoffs.' : 'Pas de match cette semaine.'}</div><button class="btn primary" data-action="advance">Simuler la semaine</button></div>`;
+      const out = l.cup && l.phase === 'playoffs' && !l.playoffs.some((x) => !x.played && (x.home === l.userTeamId || x.away === l.userTeamId));
+      next = `<div class="panel col" style="align-items:center"><div class="muted">${out ? 'Votre équipe est éliminée. Suivez la suite de la compétition.' : l.phase === 'playoffs' ? 'Votre équipe ne joue pas cette semaine des playoffs.' : 'Pas de match cette semaine.'}</div><button class="btn primary" data-action="advance">${l.cup ? 'Simuler le tour' : 'Simuler la semaine'}</button></div>`;
     } else if (l.phase === 'offseason') {
       next = `<div class="panel col" style="align-items:center"><div style="font-size:22px">🏆 Champion : ${l.champion ? teamLabel(teamById(l, l.champion)) : '—'}</div><button class="btn primary" data-action="endSeason">Bilan de saison et intersaison</button></div>`;
     } else if (l.phase === 'draft') {
       const manage = l.mode === 'coach' || l.mode === 'franchise';
       next = `<div class="panel col" style="align-items:center"><div>Draft en cours (choix ${l.draftPick + 1}/${l.draftOrder.length * l.draftRounds}).</div>${manage ? '<button class="btn primary" data-action="tab:draft">Aller à la draft</button>' : '<button class="btn primary" data-action="autoDraft">Terminer la draft et lancer la saison suivante</button>'}</div>`;
     }
-    const coach = l.coach ? `<div class="panel" style="margin-top:8px"><b>Direction</b> · Objectif : ${l.coach.objectives.wins} victoires${l.coach.objectives.playoffs ? ' + playoffs' : ''} · Confiance ${Math.round(l.coach.security)}/100 · Réputation ${Math.round(l.coach.reputation)}/100</div>` : '';
-    const career = l.mode === 'playerCareer' ? this.careerSummary() : '';
+    const coach = l.coach && l.mode !== 'club' ? `<div class="panel" style="margin-top:8px"><b>Direction</b> · Objectif : ${l.coach.objectives.wins} victoires${l.coach.objectives.playoffs ? ' + playoffs' : ''} · Confiance ${Math.round(l.coach.security)}/100 · Réputation ${Math.round(l.coach.reputation)}/100</div>` : '';
+    const career = l.mode === 'playerCareer' ? this.careerSummary() : l.pyramid ? this.clubSummary() : '';
     return `<div class="row" style="align-items:stretch;gap:10px">
       <div class="col grow">${next}${coach}${career}</div>
-      <div class="col" style="width:40%"><div class="panel"><b>Bilan</b> : ${row.w}-${row.l}-${row.t} · PF ${row.pf} · PA ${row.pa} · ${row.streak || '—'}</div>
+      <div class="col" style="width:40%">${row && (!l.cup || l.cup.groups) ? `<div class="panel"><b>Bilan</b> : ${row.w}-${row.l}-${row.t} · PF ${row.pf} · PA ${row.pa} · ${row.streak || '—'}</div>` : ''}
       <div class="panel col"><b>Actualités</b>${l.news.slice(0, 8).map((n) => `<div style="font-size:14px">${esc(n)}</div>`).join('') || '<div class="muted">Aucune actualité.</div>'}</div></div></div>`;
+  }
+
+  private clubSummary(): string {
+    const l = this.l;
+    const p = l.pyramid!;
+    const rank = standings(l).findIndex((r) => r.teamId === l.userTeamId) + 1;
+    const ladder = ([1, 2, 3] as DivisionLevel[]).map((lvl) => `<span class="chip ${lvl === p.level ? 'on' : ''}" style="min-height:30px">${lvl === 1 ? '🥇' : lvl === 2 ? '🥈' : '🥉'} D${lvl}</span>`).join('');
+    const log = p.log.slice(-4).reverse().map((x) => `<div style="font-size:14px">S${x.season} · D${x.level} · ${x.rank}e ${x.moved === 'up' ? '⬆️ montée' : x.moved === 'down' ? '⬇️ relégation' : ''}</div>`).join('');
+    return `<div class="panel" style="margin-top:8px"><div class="row" style="gap:6px;flex-wrap:wrap"><b>${DIVISIONS[p.level].name}</b>${ladder}</div>
+      <div>🎯 ${esc(divisionObjective(p.level))}</div><div class="muted" style="font-size:14px">Classement actuel : ${rank}e / ${l.teams.length} · Trésorerie ${money(l.finances[l.userTeamId].cash)}</div>${log}</div>`;
   }
 
   private careerSummary(): string {
@@ -160,8 +191,26 @@ export class LeagueHub implements Screen {
 
   private standingsTab(): string {
     const l = this.l;
+    const head = '<tr><th>Équipe</th><th>V</th><th>D</th><th>N</th><th>PF</th><th>PA</th><th>Diff</th><th>Série</th></tr>';
+    const line = (r: StandingRow, prefix: string, style = '') => `<tr class="${r.teamId === l.userTeamId ? 'me' : ''}" style="${style}"><td>${prefix}${teamLabel(teamById(l, r.teamId), 20)}</td><td>${r.w}</td><td>${r.l}</td><td>${r.t}</td><td>${r.pf}</td><td>${r.pa}</td><td>${r.pf - r.pa}</td><td>${r.streak || '—'}</td></tr>`;
+    if (l.cup?.groups) {
+      return l.cup.groups.map((g, gi) => {
+        const rows = sortStandings(computeStandings(g.map((id) => ({ id, conference: 0 as const })), l.schedule), l.schedule);
+        return `<div class="opt-label">Groupe ${String.fromCharCode(65 + gi)}</div><table class="stats">${head}${rows.map((r, i) => line(r, i < 2 ? '✅ ' : '')).join('')}</table>`;
+      }).join('') + '<div class="muted" style="font-size:13px">Les 2 premiers de chaque groupe se qualifient pour la phase finale.</div>';
+    }
+    if (l.pyramid) {
+      const zoneStyle = { up: 'background:rgba(61,220,132,.16)', down: 'background:rgba(255,90,95,.16)', title: 'background:rgba(255,204,26,.14)' } as const;
+      const icon = { up: '⬆️ ', down: '⬇️ ', title: '🏅 ' } as const;
+      const d = DIVISIONS[l.pyramid.level];
+      return `<div class="opt-label">${d.name}</div><table class="stats">${head}${standings(l).map((r, i) => {
+        const z = rankZone(l, i);
+        return line(r, `${i + 1}. ${z ? icon[z] : ''}`, z ? zoneStyle[z] : '');
+      }).join('')}</table><div class="muted" style="font-size:13px">${d.promote ? `⬆️ ${d.promote} montées` : '🏅 top 4 en playoffs pour le titre'}${d.relegate ? ` · ⬇️ ${d.relegate} relégations` : ''}</div>`;
+    }
     const st = standings(l);
-    return [0, 1].map((c) => `<div class="opt-label">${c === 0 ? 'Conférence Atlantique' : 'Conférence Horizon'}</div><table class="stats"><tr><th>Équipe</th><th>V</th><th>D</th><th>N</th><th>PF</th><th>PA</th><th>Diff</th><th>Série</th></tr>${st.filter((r) => r.conference === c).map((r, i) => `<tr class="${r.teamId === l.userTeamId ? 'me' : ''}"><td>${i < l.playoffTeams ? '🏅 ' : ''}${teamLabel(teamById(l, r.teamId), 20)}</td><td>${r.w}</td><td>${r.l}</td><td>${r.t}</td><td>${r.pf}</td><td>${r.pa}</td><td>${r.pf - r.pa}</td><td>${r.streak || '—'}</td></tr>`).join('')}</table>`).join('');
+    const names = l.conferenceNames ?? ['Conférence Atlantique', 'Conférence Horizon'];
+    return [0, 1].map((c) => `<div class="opt-label">${esc(names[c])}</div><table class="stats">${head}${st.filter((r) => r.conference === c).map((r, i) => line(r, i < l.playoffTeams ? '🏅 ' : '')).join('')}</table>`).join('');
   }
 
   private playoffsTab(): string {
@@ -172,7 +221,7 @@ export class LeagueHub implements Screen {
       const h = teamById(l, g.home);
       const a = teamById(l, g.away);
       return `<div class="game"><div class="opt-label" style="margin:0">${esc(g.label)}</div><div class="${g.winner === h.id ? 'w' : ''}">${esc(h.abbr)} ${g.score ? g.score[0] : ''}</div><div class="${g.winner === a.id ? 'w' : ''}">${esc(a.abbr)} ${g.score ? g.score[1] : ''}</div></div>`;
-    }).join('')}</div>`).join('')}${l.champion ? `<div class="round"><div class="game" style="font-size:20px">🏆 ${esc(teamById(l, l.champion).name)}</div></div>` : ''}</div>`;
+    }).join('')}</div>`).join('')}${l.champion ? `<div class="round"><div class="game" style="font-size:20px">🏆 ${esc(displayName(teamById(l, l.champion)))}</div></div>` : ''}</div>`;
   }
 
   private rosterTab(): string {
@@ -181,14 +230,14 @@ export class LeagueHub implements Screen {
     if (this.selectedPlayer) {
       const p = team.roster.find((x) => x.id === this.selectedPlayer);
       if (p) {
-        const manage = l.mode === 'coach' || l.mode === 'franchise';
+        const manage = l.mode === 'coach' || l.mode === 'franchise' || l.mode === 'club';
         const depth = team.depth[p.position] ?? [];
         const idx = depth.indexOf(p.id);
         return `<div class="row" style="margin-bottom:8px"><button class="btn ghost" data-action="unselect">‹ Effectif</button>
           <span class="muted">Profondeur ${p.position} : n°${idx + 1}/${depth.length}</span>
           <button class="btn" data-action="depthUp:${p.id}" ${idx <= 0 ? 'disabled' : ''}>▲ Monter</button>
           <button class="btn" data-action="depthDown:${p.id}" ${idx >= depth.length - 1 ? 'disabled' : ''}>▼ Descendre</button>
-          ${manage ? `<button class="btn" data-action="extend:${p.id}">Prolonger</button><button class="btn danger" data-action="release:${p.id}">Libérer</button>` : ''}
+          ${manage ? `<button class="btn" data-action="extend:${p.id}">Prolonger</button>${l.mode === 'club' ? `<button class="btn" data-action="sell:${p.id}">Vendre</button>` : ''}<button class="btn danger" data-action="release:${p.id}">Libérer</button>` : ''}
         </div>${playerCard(p, l)}`;
       }
     }
@@ -197,6 +246,17 @@ export class LeagueHub implements Screen {
     return `<div class="tabs"><button class="chip ${pos === 'ALL' ? 'on' : ''}" data-action="pos:ALL">Tous (${team.roster.length})</button>${ALL_POSITIONS.map((p) => `<button class="chip ${pos === p ? 'on' : ''}" data-action="pos:${p}">${p}</button>`).join('')}</div>
       ${pos !== 'ALL' ? '<div class="muted" style="font-size:14px">Profondeur de poste : l’ordre détermine les titulaires (touchez un joueur pour le monter/descendre).</div>' : ''}
       ${list.map((p, i) => playerRow(p, pos !== 'ALL' ? `<span class="chip" style="min-height:30px">${i === 0 ? 'Titulaire' : `n°${i + 1}`}</span>` : '', `player:${p.id}`)).join('')}`;
+  }
+
+  private transfersTab(): string {
+    const l = this.l;
+    const pos = this.transferPos;
+    const list = searchPlayers(l, pos).slice(0, 40);
+    const f = l.finances[l.userTeamId];
+    return `<div class="row" style="flex-wrap:wrap"><b>Marché des transferts</b><span class="muted">Trésorerie ${money(f.cash)} · Espace salarial ${money(capSpace(l, l.userTeamId))} · Effectif ${userTeam(l).roster.length}/55</span></div>
+      <div class="tabs"><button class="chip ${pos === 'ALL' ? 'on' : ''}" data-action="tpos:ALL">Tous</button>${ALL_POSITIONS.map((p) => `<button class="chip ${pos === p ? 'on' : ''}" data-action="tpos:${p}">${p}</button>`).join('')}</div>
+      <div class="muted" style="font-size:13px">Achetez des joueurs aux clubs de votre division ou à des clubs étrangers. Pour vendre, ouvrez la fiche d’un joueur dans l’Effectif.</div>
+      ${list.map((x) => playerRow(x.player, `<span class="muted" style="font-size:13px;max-width:130px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(x.seller)}</span><button class="btn ${x.fee <= f.cash ? 'primary' : ''}" data-action="buy:${x.player.id}">${money(x.fee)}</button>`)).join('') || '<div class="muted">Aucun joueur disponible à ce poste.</div>'}`;
   }
 
   private marketTab(): string {
@@ -275,11 +335,11 @@ export class LeagueHub implements Screen {
   private historyTab(): string {
     const l = this.l;
     const r = l.records;
-    return `<div class="row" style="align-items:flex-start;gap:12px"><div class="col grow"><b>Palmarès</b>${l.history.map((h) => `<div class="list-item">Saison ${h.season} · 🏆 ${esc(teamById(l, h.champion)?.name ?? '—')} · MVP ${esc(h.mvp?.name ?? '—')}${h.userRecord ? ` · Vous : ${h.userRecord.w}-${h.userRecord.l}-${h.userRecord.t}` : ''}</div>`).join('') || '<div class="muted">Aucune saison terminée.</div>'}
-      ${l.coach ? `<b style="margin-top:8px">Carrière du coach</b>${l.coach.seasons.map((s) => `<div class="list-item">S${s.season} ${esc(teamById(l, s.teamId).abbr)} ${s.w}-${s.l}-${s.t}${s.playoffs ? ' · playoffs' : ''}${s.champion ? ' · 🏆' : ''}</div>`).join('') || '<div class="muted">—</div>'}` : ''}</div>
+    return `<div class="row" style="align-items:flex-start;gap:12px"><div class="col grow"><b>Palmarès</b>${l.history.map((h) => `<div class="list-item">Saison ${h.season} · 🏆 ${esc(teamInfo(l, h.champion).name)} · MVP ${esc(h.mvp?.name ?? '—')}${h.userRecord ? ` · Vous : ${h.userRecord.w}-${h.userRecord.l}-${h.userRecord.t}` : ''}</div>`).join('') || '<div class="muted">Aucune saison terminée.</div>'}
+      ${l.coach ? `<b style="margin-top:8px">Carrière du coach</b>${l.coach.seasons.map((s) => `<div class="list-item">S${s.season} ${esc(teamInfo(l, s.teamId).abbr)} ${s.w}-${s.l}-${s.t}${s.playoffs ? ' · playoffs' : ''}${s.champion ? ' · 🏆' : ''}</div>`).join('') || '<div class="muted">—</div>'}` : ''}</div>
       <div class="col grow"><b>Records</b>
-        <div>Points en un match : ${r.mostPointsGame ? `${r.mostPointsGame.value} (${esc(teamById(l, r.mostPointsGame.teamId).abbr)}, S${r.mostPointsGame.season})` : '—'}</div>
-        <div>Victoires en une saison : ${r.bestSeason ? `${r.bestSeason.w} (${esc(teamById(l, r.bestSeason.teamId).abbr)}, S${r.bestSeason.season})` : '—'}</div>
+        <div>Points en un match : ${r.mostPointsGame ? `${r.mostPointsGame.value} (${esc(teamInfo(l, r.mostPointsGame.teamId).abbr)}, S${r.mostPointsGame.season})` : '—'}</div>
+        <div>Victoires en une saison : ${r.bestSeason ? `${r.bestSeason.w} (${esc(teamInfo(l, r.bestSeason.teamId).abbr)}, S${r.bestSeason.season})` : '—'}</div>
         <div>Yards à la passe (saison) : ${r.passYdsSeason ? `${r.passYdsSeason.value} — ${esc(r.passYdsSeason.name)}` : '—'}</div>
         <div>Yards à la course (saison) : ${r.rushYdsSeason ? `${r.rushYdsSeason.value} — ${esc(r.rushYdsSeason.name)}` : '—'}</div></div></div>`;
   }
@@ -331,7 +391,7 @@ export class LeagueHub implements Screen {
         if (l.mode === 'playerCareer') report.push(...careerAwards(l).map((x) => `🏅 ${x}`));
         if (l.mode === 'season' || l.mode === 'playerCareer') {
           runAiDraft(l, false);
-          startNewSeason(l);
+          report.push(...startNewSeason(l));
           report.push(`La saison ${l.season} commence !`);
         } else {
           runAiDraft(l);
@@ -342,11 +402,14 @@ export class LeagueHub implements Screen {
         this.message(report.join('\n'));
         return;
       }
-      case 'autoDraft':
+      case 'autoDraft': {
         runAiDraft(l, false);
-        startNewSeason(l);
+        const msgs = startNewSeason(l);
         this.save();
-        break;
+        this.render();
+        if (msgs.length) this.message(msgs.join('\n'));
+        return;
+      }
       case 'draft':
         draftPlayer(l, l.userTeamId, v);
         runAiDraft(l);
@@ -355,11 +418,38 @@ export class LeagueHub implements Screen {
       case 'draftSim':
         runAiDraft(l);
         break;
-      case 'newSeason':
-        startNewSeason(l);
+      case 'newSeason': {
+        const msgs = startNewSeason(l);
         this.tab = 'home';
         this.save();
+        this.render();
+        if (msgs.length) this.message(msgs.join('\n'));
+        return;
+      }
+      case 'tpos':
+        this.transferPos = v as Position | 'ALL';
         break;
+      case 'buy': {
+        const r = buyPlayer(l, v);
+        if (r.ok) this.save();
+        this.render();
+        this.message(r.ok ? r.message : r.reason);
+        return;
+      }
+      case 'sell': {
+        const offer = saleOffer(l, v);
+        if (!offer) return;
+        const p = userTeam(l).roster.find((x) => x.id === v)!;
+        void showConfirm(`${offer.buyer} propose ${money(offer.fee)} pour ${fullName(p)} (GÉN ${overall(p)}). Accepter ?`, 'Vendre', 'Refuser').then((ok) => {
+          if (!ok) return;
+          const r = sellPlayer(l, v);
+          this.selectedPlayer = null;
+          this.save();
+          this.render();
+          this.message(r.ok ? r.message : r.reason);
+        });
+        return;
+      }
       case 'job':
         l.userTeamId = v;
         if (l.coach) {
