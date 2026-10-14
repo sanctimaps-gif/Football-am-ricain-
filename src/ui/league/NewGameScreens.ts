@@ -7,6 +7,7 @@ import { createLeague, isLeague } from '../../league/league';
 import type { League, LeagueMode } from '../../league/types';
 import type { App, Screen } from '../App';
 import { el, esc, onAction } from '../dom';
+import { showConfirm, showMessage } from '../dialog';
 import { logoSvg } from '../logo';
 import { MainMenu } from '../screens/MainMenu';
 import { LeagueHub, MODE_TITLES } from './LeagueHub';
@@ -17,8 +18,8 @@ const SHAPES: LogoShape[] = ['shield', 'circle', 'diamond', 'hexagon', 'star', '
 function startLeague(app: App, l: League): void {
   const slot = app.saves.freeSlot();
   if (slot === null) {
-    alert('Les 3 emplacements de sauvegarde sont utilisés : supprimez-en un dans « Sauvegardes ».');
     app.go(new SavesScreen(app));
+    void showMessage('Les 3 emplacements de sauvegarde sont utilisés : supprimez-en un pour commencer une nouvelle partie.');
     return;
   }
   const hub = new LeagueHub(app, l, slot);
@@ -118,7 +119,7 @@ export class FranchiseCreator implements Screen {
     if (k === 'shape') d.shape = v as LogoShape;
     if (k === 'stripes') d.stripes = !d.stripes;
     if (k === 'create') {
-      if (!d.city || !d.name || d.abbr.length < 2) return alert('Renseignez la ville, le nom et une abréviation (2-3 lettres).');
+      if (!d.city || !d.name || d.abbr.length < 2) return void showMessage('Renseignez la ville, le nom et une abréviation (2-3 lettres).');
       const seed = Date.now() >>> 0;
       const teams = createDefaultTeams(seed);
       const weakest = [...teams].sort((x, y) => teamOverall(x) - teamOverall(y))[0];
@@ -210,10 +211,16 @@ export class SavesScreen implements Screen {
     if (k === 'back') return this.app.go(new MainMenu(this.app));
     if (k === 'load') {
       const l = this.app.saves.loadSlot(Number(v), isLeague);
-      if (!l) return alert('Sauvegarde illisible ou incompatible.');
+      if (!l) return void showMessage('Sauvegarde illisible ou incompatible.');
       return this.app.go(new LeagueHub(this.app, l, Number(v)));
     }
-    if (k === 'del' && confirm('Supprimer définitivement cette sauvegarde ?')) this.app.saves.deleteSlot(Number(v));
+    if (k === 'del') {
+      void showConfirm('Supprimer définitivement cette sauvegarde ?', 'Supprimer', 'Annuler').then((ok) => {
+        if (ok) this.app.saves.deleteSlot(Number(v));
+        this.render();
+      });
+      return;
+    }
     this.render();
   }
 }

@@ -1,5 +1,6 @@
 import { menuExtensions } from '../screens/menuRegistry';
 import { t } from '../../i18n';
+import { showConfirm } from '../dialog';
 import { openTraining } from '../screens/Tutorial';
 import { FranchiseCreator, PlayerCreator, SavesScreen, TeamPickScreen } from './NewGameScreens';
 
@@ -11,6 +12,9 @@ export function registerLeagueModes(): void {
     { id: 'franchise', icon: '🏟️', label: () => t('menu.franchise'), sub: () => 'Créez votre club : logo, maillots, budget, échanges.', open: (app) => app.go(new FranchiseCreator(app)) },
     { id: 'player', icon: '⭐', label: () => t('menu.player'), sub: () => 'Créez un joueur, draft, progression, récompenses.', open: (app) => app.go(new PlayerCreator(app)) },
   );
-  menuExtensions.tiles.push({ id: 'training', icon: '🎯', label: () => t('menu.training'), sub: () => 'Tutoriel guidé puis entraînement libre.', open: (app) => app.go(openTraining(app, !app.profile.tutorialDone.includes('all') || confirm('Refaire le tutoriel guidé ? (Annuler = entraînement libre)'))) });
+  menuExtensions.tiles.push({ id: 'training', icon: '🎯', label: () => t('menu.training'), sub: () => 'Tutoriel guidé puis entraînement libre.', open: (app) => {
+    if (!app.profile.tutorialDone.includes('all')) return app.go(openTraining(app, true));
+    void showConfirm('Refaire le tutoriel guidé ?', 'Tutoriel guidé', 'Entraînement libre').then((guided) => app.go(openTraining(app, guided)));
+  } });
   menuExtensions.footer.push({ id: 'saves', icon: '💾', label: () => t('menu.saves'), sub: () => '', open: (app) => app.go(new SavesScreen(app)) });
 }

@@ -11,6 +11,7 @@ import { openness } from '../../sim/qb';
 import type { PassType } from '../../sim/types';
 import type { App, Screen } from '../App';
 import { el, esc, onAction } from '../dom';
+import { showConfirm } from '../dialog';
 import { defenseDiagram, offenseDiagram } from '../playDiagram';
 import { ResultScreen } from './ResultScreen';
 
@@ -582,7 +583,9 @@ export class MatchScreen implements Screen {
         this.openPause();
       }
       if (act === 'quit') {
-        if (confirm(t('pause.quitConfirm'))) this.exit(false);
+        void showConfirm(t('pause.quitConfirm'), t('pause.quit'), t('common.cancel')).then((ok) => {
+          if (ok) this.exit(false);
+        });
       }
     });
     this.overlay.appendChild(m);
