@@ -6,7 +6,7 @@ import type { MatchController } from '../match/MatchController';
 import { attackDir } from '../rules/engine';
 import type { PlaySim } from '../sim/PlaySim';
 import type { Agent } from '../sim/types';
-import { makeTeamLook, PlayerView, type TeamLook } from './playerModel';
+import { makeTeamLook, PlayerBatcher, PlayerView, type TeamLook } from './playerModel';
 import { buildSky, buildStadium, toScene, type StadiumParts } from './stadium';
 
 export type Quality = 'low' | 'medium' | 'high';
@@ -31,6 +31,7 @@ export class GameRenderer {
   private stadium: StadiumParts | null = null;
   private views = new Map<string, ViewState>();
   private looks: [TeamLook, TeamLook] | null = null;
+  private batcher: PlayerBatcher;
   private ball: THREE.Group;
   private ballShadow: THREE.Mesh;
   private losLine: THREE.Mesh;
@@ -65,6 +66,7 @@ export class GameRenderer {
     this.renderer.shadowMap.enabled = quality !== 'low';
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.3, 900);
+    this.batcher = new PlayerBatcher(this.scene, quality !== 'low');
     this.scene.fog = new THREE.Fog('#2a4166', 160, 420);
     this.scene.add(buildSky());
     // éclairage : ambiance + projecteurs (une seule lumière directionnelle ombrée)
@@ -297,7 +299,12 @@ export class GameRenderer {
         v.view.root.rotation.y = -v.facing;
       }
     }
-    for (const v of this.views.values()) v.view.root.visible = v.seen;
+    this.batcher.begin();
+    for (const v of this.views.values()) {
+      v.view.root.visible = v.seen;
+      this.batcher.add(v.view);
+    }
+    this.batcher.end();
     this.updateBall(mc);
     this.updateMarkers(mc);
     this.updateParticles(dt);
@@ -443,7 +450,16 @@ export class GameRenderer {
     let lx: number;
     let ly: number;
     let lz: number;
-    if (this.celebrate && mc.phase === 'PlayReview') {
+    if (mc.phase === 'CoinToss' || mc.phase === 'PreGame' || mc.phase === 'MatchFinished') {
+      // survol du stade (avant-match / fin de match)
+      const a = this.time * 0.12;
+      px = Math.cos(a) * 55;
+      pz = Math.sin(a) * 40;
+      py = 18 + Math.sin(this.time * 0.3) * 4;
+      lx = 0;
+      ly = 0;
+      lz = 0;
+    } else if (this.celebrate && mc.phase === 'PlayReview') {
       this.celebrate.t += dt;
       const [cxs, czs] = toScene(this.celebrate.x, this.celebrate.y);
       const ang = this.celebrate.t * 0.6 + this.camYaw + Math.PI;
@@ -511,10 +527,18 @@ export class GameRenderer {
     this.ball.visible = false;
     this.losLine.visible = this.fdLine.visible = this.userRing.visible = this.targetRing.visible = this.landing.visible = false;
     for (const v of this.views.values()) v.view.root.visible = false;
+    this.batcher.begin();
+    this.batcher.end();
     this.renderer.render(this.scene, this.camera);
   }
 
+  /** Nombre d'appels de rendu de la dernière image (diagnostic). */
+  get drawCalls(): number {
+    return this.renderer.info.render.calls;
+  }
+
   dispose(): void {
+    this.batcher.dispose();
     this.stadium?.dispose();
     this.renderer.dispose();
   }

@@ -84,7 +84,10 @@ export class MatchScreen implements Screen {
     this.bindEvents();
     audio.stopMusic();
     audio.startCrowd();
+    audio.cheer(0.8);
     this.mc.start();
+    this.banner(`${cfg.away.abbr} @ ${cfg.home.abbr}`, true, 2.2);
+    this.tickerText = `${cfg.home.stadium.name} · ${cfg.home.city}${cfg.title ? ' · ' + cfg.title : ''}`;
   }
 
   private buildHud(): void {

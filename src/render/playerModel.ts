@@ -53,6 +53,7 @@ const G = {
   cleat: new THREE.BoxGeometry(0.24, 0.07, 0.1),
   numberPlane: new THREE.PlaneGeometry(0.26, 0.26),
   shadowBlob: new THREE.CircleGeometry(0.42, 16),
+  face: new THREE.SphereGeometry(0.1, 8, 6),
 };
 const MASK_MAT = new THREE.MeshStandardMaterial({ color: '#c9ced6', metalness: 0.6, roughness: 0.3 });
 const CLEAT_MAT = new THREE.MeshStandardMaterial({ color: '#111111', roughness: 0.6 });
@@ -99,7 +100,9 @@ export class PlayerView {
   private armR: Limb;
   private legL: Limb;
   private legR: Limb;
-  private blob: THREE.Mesh;
+  private blob: THREE.Object3D;
+  /** Ancres des pièces rendues par instanciation (voir PlayerBatcher). */
+  readonly anchors: THREE.Object3D[] = [];
   private bodyScale: number;
   private widthScale: number;
   playerId = '';
@@ -119,16 +122,16 @@ export class PlayerView {
     this.hips.position.y = 0.98;
     this.hips.add(this.torso);
     // torse + maillot
-    const torsoMesh = new THREE.Mesh(G.torso, look.jersey);
+    const torsoMesh = this.part(G.torso, look.jersey);
     torsoMesh.position.y = 0.34;
     torsoMesh.scale.set(0.85, 1, 1.25 * this.widthScale);
     this.torso.add(torsoMesh);
-    const pads = new THREE.Mesh(G.pads, look.pads);
+    const pads = this.part(G.pads, look.pads);
     pads.position.y = 0.62;
     pads.scale.z = this.widthScale;
     this.torso.add(pads);
     for (const s of [-1, 1]) {
-      const cap = new THREE.Mesh(G.padCap, look.pads);
+      const cap = this.part(G.padCap, look.pads);
       cap.position.set(0, 0.6, s * 0.33 * this.widthScale);
       cap.scale.set(1, 0.7, 1);
       this.torso.add(cap);
@@ -136,37 +139,37 @@ export class PlayerView {
     // numéros (dos et poitrine)
     const ntex = numberTexture(player.number, look.numberColor, look.jerseyColor === '#F4F4F4' ? '#222' : '#ffffff');
     const nmat = new THREE.MeshBasicMaterial({ map: ntex, transparent: true });
-    const back = new THREE.Mesh(G.numberPlane, nmat);
+    const back = new THREE.Mesh(G.numberPlane, nmat); // vrai maillage (texture propre au joueur)
     back.position.set(-0.19, 0.4, 0);
     back.rotation.y = -Math.PI / 2;
-    const front = new THREE.Mesh(G.numberPlane, nmat);
+    const front = new THREE.Mesh(G.numberPlane, nmat); // vrai maillage
     front.position.set(0.19, 0.42, 0);
     front.rotation.y = Math.PI / 2;
     front.scale.setScalar(0.75);
     this.torso.add(back, front);
     // cou + tête/casque
-    const neck = new THREE.Mesh(G.neck, skin);
+    const neck = this.part(G.neck, skin);
     neck.position.y = 0.76;
     this.torso.add(neck);
     this.head.position.y = 0.9;
     this.torso.add(this.head);
-    const helmet = new THREE.Mesh(G.helmet, look.helmet);
+    const helmet = this.part(G.helmet, look.helmet);
     helmet.scale.set(1.12, 1.05, 1.0);
     this.head.add(helmet);
-    const stripe = new THREE.Mesh(G.stripe, look.stripe);
+    const stripe = this.part(G.stripe, look.stripe);
     stripe.position.y = 0.155;
     this.head.add(stripe);
-    const mask = new THREE.Mesh(G.mask, MASK_MAT);
+    const mask = this.part(G.mask, MASK_MAT);
     mask.position.set(0.13, -0.03, 0);
     mask.rotation.set(0, Math.PI / 2, Math.PI / 2);
     this.head.add(mask);
     for (const yy of [-0.06, 0.0]) {
-      const bar = new THREE.Mesh(G.maskBar, MASK_MAT);
+      const bar = this.part(G.maskBar, MASK_MAT);
       bar.rotation.x = Math.PI / 2;
       bar.position.set(0.17, yy, 0);
       this.head.add(bar);
     }
-    const face = new THREE.Mesh(new THREE.SphereGeometry(0.1, 8, 6), player.appearance.visor ? VISOR_MAT : skin);
+    const face = this.part(G.face, player.appearance.visor ? VISOR_MAT : skin);
     face.position.set(0.09, -0.02, 0);
     face.scale.set(0.6, 0.9, 0.9);
     this.head.add(face);
@@ -177,31 +180,37 @@ export class PlayerView {
     this.legL = this.makeLeg(look, -1);
     this.legR = this.makeLeg(look, 1);
     // ombre portée simple (mode qualité basse)
-    this.blob = new THREE.Mesh(G.shadowBlob, BLOB_MAT);
+    this.blob = this.part(G.shadowBlob, BLOB_MAT);
     this.blob.rotation.x = -Math.PI / 2;
     this.blob.position.y = 0.02;
     this.blob.visible = !shadows;
     this.root.add(this.blob);
     this.root.scale.setScalar(this.bodyScale);
     this.root.traverse((o) => {
-      if ((o as THREE.Mesh).isMesh && o !== this.blob) {
-        o.castShadow = shadows;
-      }
+      if ((o as THREE.Mesh).isMesh) o.castShadow = shadows;
     });
+  }
+
+  private part(geo: THREE.BufferGeometry, mat: THREE.Material): THREE.Object3D {
+    const o = new THREE.Object3D();
+    o.userData.geo = geo;
+    o.userData.mat = mat;
+    this.anchors.push(o);
+    return o;
   }
 
   private makeArm(look: TeamLook, skin: THREE.Material, side: number): Limb {
     const pivot = new THREE.Group();
     pivot.position.set(0, 0.6, side * 0.36 * this.widthScale);
-    const upper = new THREE.Mesh(G.upperArm, look.jersey);
+    const upper = this.part(G.upperArm, look.jersey);
     upper.position.y = -0.15;
     pivot.add(upper);
     const lower = new THREE.Group();
     lower.position.y = -0.3;
-    const fore = new THREE.Mesh(G.foreArm, skin);
+    const fore = this.part(G.foreArm, skin);
     fore.position.y = -0.13;
     lower.add(fore);
-    const glove = new THREE.Mesh(G.glove, GLOVE_MAT);
+    const glove = this.part(G.glove, GLOVE_MAT);
     glove.position.y = -0.29;
     lower.add(glove);
     pivot.add(lower);
@@ -212,16 +221,16 @@ export class PlayerView {
   private makeLeg(look: TeamLook, side: number): Limb {
     const pivot = new THREE.Group();
     pivot.position.set(0, 0, side * 0.13 * this.widthScale);
-    const thigh = new THREE.Mesh(G.thigh, look.pants);
+    const thigh = this.part(G.thigh, look.pants);
     thigh.position.y = -0.22;
     thigh.scale.x = this.widthScale;
     pivot.add(thigh);
     const lower = new THREE.Group();
     lower.position.y = -0.47;
-    const shin = new THREE.Mesh(G.shin, look.socks);
+    const shin = this.part(G.shin, look.socks);
     shin.position.y = -0.2;
     lower.add(shin);
-    const cleat = new THREE.Mesh(G.cleat, CLEAT_MAT);
+    const cleat = this.part(G.cleat, CLEAT_MAT);
     cleat.position.set(0.05, -0.42, 0);
     lower.add(cleat);
     pivot.add(lower);
@@ -384,5 +393,57 @@ export class PlayerView {
     this.body.position.y = this.downBlend * 0.22;
     this.body.position.x = this.downBlend * 0.75;
     this.blob.scale.set(1 + this.downBlend * 1.3, 1, 1);
+  }
+}
+
+/**
+ * Rendu instancié des joueurs : une InstancedMesh par couple (géométrie, matériau).
+ * Réduit les appels de rendu d'environ 550 à une cinquantaine pour 22 joueurs.
+ */
+export class PlayerBatcher {
+  private batches = new Map<string, { mesh: THREE.InstancedMesh; count: number }>();
+
+  constructor(private scene: THREE.Scene, private shadows: boolean, private capacity = 72) {}
+
+  begin(): void {
+    for (const b of this.batches.values()) b.count = 0;
+  }
+
+  add(view: PlayerView): void {
+    if (!view.root.visible) return;
+    view.root.updateMatrixWorld(true);
+    for (const a of view.anchors) {
+      if (!a.visible) continue;
+      const geo = a.userData.geo as THREE.BufferGeometry;
+      const mat = a.userData.mat as THREE.Material;
+      const key = `${geo.uuid}|${mat.uuid}`;
+      let b = this.batches.get(key);
+      if (!b) {
+        const mesh = new THREE.InstancedMesh(geo, mat, this.capacity);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.frustumCulled = false;
+        mesh.castShadow = this.shadows && mat !== BLOB_MAT;
+        mesh.count = 0;
+        this.scene.add(mesh);
+        b = { mesh, count: 0 };
+        this.batches.set(key, b);
+      }
+      if (b.count < this.capacity) b.mesh.setMatrixAt(b.count++, a.matrixWorld);
+    }
+  }
+
+  end(): void {
+    for (const b of this.batches.values()) {
+      b.mesh.count = b.count;
+      b.mesh.instanceMatrix.needsUpdate = true;
+    }
+  }
+
+  dispose(): void {
+    for (const b of this.batches.values()) {
+      this.scene.remove(b.mesh);
+      b.mesh.dispose();
+    }
+    this.batches.clear();
   }
 }
