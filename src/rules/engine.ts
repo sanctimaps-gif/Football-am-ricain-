@@ -514,7 +514,7 @@ function applyOutcome(state: GameState, r: PlayResult, rules: RulesConfig): stri
       return tags;
     }
     state.clockRunning = !r.outOfBounds;
-    advanceDowns(state, spotForP, tags);
+    advanceDowns(state, Math.min(99, Math.round(spotForP)), tags);
     return tags;
   }
 

@@ -138,7 +138,8 @@ export function generateRoster(teamId: string, seed: number, tier: number): Play
 }
 
 export function teamFromTemplate(t: TeamTemplate, leagueSeed = 1): Team {
-  const roster = generateRoster(t.id, hashString(t.id) ^ leagueSeed, t.tier);
+  // écart de niveau resserré pour garder des matchs disputés
+  const roster = generateRoster(t.id, hashString(t.id) ^ leagueSeed, 1 + (t.tier - 1) * 0.5);
   return {
     id: t.id,
     city: t.city,
