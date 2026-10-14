@@ -325,61 +325,69 @@ export class MatchScreen implements Screen {
     const userOff = mc.userSide === sim.offense;
     const u = sim.userAgent >= 0 ? sim.agents[sim.userAgent] : null;
     const kind = sim.setup.kind;
+    const B = (id: ButtonSpec['id'], hold = false, label = t(`btn.${id}`)): void => {
+      specs.push({ id, label, hold });
+    };
+    // Règle : le premier bouton ajouté est l'action principale de la situation.
     if (mc.phase === 'PreSnap') {
       if (kind === 'kickoff') {
-        if (userOff) specs.push({ id: 'kick', label: t('btn.kick'), big: true });
+        if (userOff) B('kick');
       } else if (userOff) {
-        specs.push({ id: 'snap', label: t('btn.snap'), big: true });
+        B('snap');
         if (sim.isPassPlay) {
-          specs.push({ id: 'passType', label: t(`pass.${this.controls.passType}`) });
-          specs.push({ id: 'target', label: t('btn.target') });
+          B('target');
+          B('passType', false, t(`pass.${this.controls.passType}`));
         }
-      } else specs.push({ id: 'switch', label: t('btn.switch'), accent: true });
-      this.controls.setButtons(specs);
-      return;
-    }
-    if (sim.awaitingKick && userOff && this.app.settings.userKicks) {
-      specs.push({ id: 'kick', label: t('btn.kick'), big: true });
-      this.controls.setButtons(specs);
-      return;
-    }
-    const b = sim.ball;
-    const hasBall = !!u && b.state === 'held' && b.holder === u.idx;
-    if (hasBall && u) {
-      const qbPocket = u.idx === sim.qbIdx && sim.isPassPlay && !sim.thrown && !sim.scramble && sim.toPlay(u.x, u.y).down <= 0;
-      const option = sim.setup.offPlay?.subtype === 'option' && u.idx === sim.qbIdx && !sim.pitched;
-      if (qbPocket) {
-        specs.push({ id: 'pass', label: t('btn.pass'), big: true });
-        specs.push({ id: 'target', label: t('btn.target') });
-        specs.push({ id: 'passType', label: t(`pass.${this.controls.passType}`) });
-        specs.push({ id: 'sprint', label: t('btn.sprint'), hold: true });
-      } else {
-        if (option) specs.push({ id: 'pass', label: t('btn.pitch'), big: true });
-        specs.push({ id: 'sprint', label: t('btn.sprint'), hold: true, big: !option });
-        specs.push({ id: 'juke', label: t('btn.juke') });
-        const traffic = sim.agents.some((d) => d.side !== u.side && !d.down && Math.hypot(d.x - u.x, d.y - u.y) < 2.2);
-        if (sim.carrierRole === 'return' && sim.inOwnEndZone(u)) specs.push({ id: 'dive', label: t('btn.kneel') });
-        else if (traffic) specs.push({ id: 'protect', label: t('btn.protect'), hold: true });
-        else specs.push({ id: 'dive', label: t('btn.dive') });
-      }
-    } else if (u && (kind === 'kickoff' || kind === 'punt') && u.side !== sim.offense && !sim.carrier()) {
-      // retour de coup de pied : le retourneur se place
-      if (b.state === 'air' && b.flight === 'punt' && u.idx === sim.returnerIdx) specs.push({ id: 'fairCatch', label: t('btn.fairCatch'), accent: true });
-      specs.push({ id: 'sprint', label: t('btn.sprint'), hold: true, big: true });
+      } else B('switch');
+    } else if (sim.awaitingKick && userOff && this.app.settings.userKicks) {
+      B('kick');
     } else if (u) {
+      const b = sim.ball;
+      const hasBall = b.state === 'held' && b.holder === u.idx;
       const ballAir = b.state === 'air';
-      if (ballAir && (b.flight === 'punt') && u.idx === sim.returnerIdx) specs.push({ id: 'fairCatch', label: t('btn.fairCatch'), accent: true });
-      specs.push({ id: 'sprint', label: t('btn.sprint'), hold: true, big: true });
-      if (u.side === sim.offense && !(sim.carrier() && sim.carrier()!.side !== u.side)) {
-        if (ballAir) specs.push({ id: 'jump', label: t('btn.jump') });
-        specs.push({ id: 'switch', label: t('btn.switch') });
+      if (hasBall) {
+        const qbPocket = u.idx === sim.qbIdx && sim.isPassPlay && !sim.thrown && !sim.scramble && sim.toPlay(u.x, u.y).down <= 0;
+        const option = sim.setup.offPlay?.subtype === 'option' && u.idx === sim.qbIdx && !sim.pitched;
+        if (qbPocket) {
+          B('pass');
+          B('sprint', true);
+          B('target');
+          B('passType', false, t(`pass.${this.controls.passType}`));
+        } else {
+          if (option) B('pass', false, t('btn.pitch'));
+          B('sprint', true);
+          B('juke');
+          const traffic = sim.agents.some((d) => d.side !== u.side && !d.down && Math.hypot(d.x - u.x, d.y - u.y) < 2.2);
+          if (sim.carrierRole === 'return' && sim.inOwnEndZone(u)) B('dive', false, t('btn.kneel'));
+          else if (traffic) B('protect', true);
+          else B('dive');
+        }
+      } else if ((kind === 'kickoff' || kind === 'punt') && u.side !== sim.offense && !sim.carrier()) {
+        // retour de coup de pied : le retourneur se place (placement automatique si joystick relâché)
+        B('sprint', true);
+        if (ballAir && b.flight === 'punt' && u.idx === sim.returnerIdx) B('fairCatch');
       } else {
-        specs.push({ id: 'tackle', label: t('btn.tackle'), accent: true });
-        specs.push({ id: ballAir ? 'jump' : 'contain', label: ballAir ? t('btn.intercept') : t('btn.contain'), hold: !ballAir });
-        specs.push({ id: 'switch', label: t('btn.switch') });
+        const carrier = sim.carrier();
+        const defending = carrier ? carrier.side !== u.side : u.side !== sim.offense;
+        if (defending) {
+          B('tackle');
+          B('sprint', true);
+          B('switch');
+          if (ballAir) B('jump', false, t('btn.intercept'));
+          else B('contain', true);
+        } else {
+          if (ballAir && b.target === u.idx) {
+            B('jump');
+            B('sprint', true);
+          } else B('sprint', true);
+          B('switch');
+        }
       }
     }
     this.controls.setButtons(specs);
+    const ua = sim.userAgent >= 0 ? sim.agents[sim.userAgent] : null;
+    this.controls.setCooling('juke', !!ua && ua.jukeCooldown > 0);
+    this.controls.setCooling('tackle', !!ua && (ua.diveTimer > 0 || ua.down));
   }
 
   private updateBubbles(): void {
@@ -414,9 +422,10 @@ export class MatchScreen implements Screen {
         this.bubbleEls.set(a.idx, b);
       }
       const p = this.app.renderer.project(a.x, a.y, 2.6, w, h);
+      // la bulle reste toujours entièrement visible et touchable
       b.style.display = p.visible ? '' : 'none';
-      b.style.left = `${p.x}px`;
-      b.style.top = `${p.y}px`;
+      b.style.left = `${Math.min(w - 26, Math.max(26, p.x))}px`;
+      b.style.top = `${Math.min(h - 8, Math.max(92, p.y))}px`;
       b.classList.toggle('passive', !live);
       b.classList.toggle('sel', sim.passTarget === a.idx);
       if (live && qb) b.classList.toggle('covered', openness(sim, qb, a) < 1.5);

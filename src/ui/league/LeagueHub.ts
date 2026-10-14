@@ -119,9 +119,9 @@ export class LeagueHub implements Screen {
       const label = 'label' in g ? g.label : `Semaine ${l.week}`;
       next = `<div class="panel col" style="align-items:center;gap:6px">
         <div class="opt-label">${esc(label)}</div>
-        <div class="result-head"><div class="col" style="align-items:center">${logoSvg(home.logo, home.colors, 60)}<b>${esc(home.abbr)}</b></div><div style="font-size:28px">contre</div><div class="col" style="align-items:center">${logoSvg(away.logo, away.colors, 60)}<b>${esc(away.abbr)}</b></div></div>
+        <div class="result-head" style="gap:12px"><div class="col" style="align-items:center;gap:2px">${logoSvg(home.logo, home.colors, 46)}<b>${esc(home.abbr)}</b></div><div style="font-size:20px">contre</div><div class="col" style="align-items:center;gap:2px">${logoSvg(away.logo, away.colors, 46)}<b>${esc(away.abbr)}</b></div></div>
         <div class="muted">${esc(home.stadium.name)} · GÉN ${teamOverall(home)} vs ${teamOverall(away)}</div>
-        <div class="row"><button class="btn primary" data-action="play">▶ Jouer le match</button><button class="btn" data-action="simulate">⏩ Simuler</button></div>
+        <div class="row" style="flex-wrap:nowrap"><button class="btn primary" style="white-space:nowrap" data-action="play">▶ Jouer</button><button class="btn" style="white-space:nowrap" data-action="simulate">Simuler</button></div>
       </div>`;
     } else if (l.phase === 'regular' || l.phase === 'playoffs') {
       next = `<div class="panel col" style="align-items:center"><div class="muted">${l.phase === 'playoffs' ? 'Votre équipe ne joue pas cette semaine des playoffs.' : 'Pas de match cette semaine.'}</div><button class="btn primary" data-action="advance">Simuler la semaine</button></div>`;

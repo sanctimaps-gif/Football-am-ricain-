@@ -4,13 +4,33 @@ export type ButtonId =
   | 'snap' | 'pass' | 'target' | 'passType' | 'sprint' | 'juke' | 'dive' | 'protect' | 'switch'
   | 'tackle' | 'jump' | 'contain' | 'kick' | 'fairCatch';
 
+/** Emplacement fixe de chaque action secondaire (1 = gauche du principal, 2 = au-dessus, 3 = diagonale, 4 = extrême gauche). */
+const SLOT_OF: Partial<Record<ButtonId, number>> = {
+  sprint: 1, switch: 2, target: 2, juke: 3, passType: 3, contain: 3, jump: 3, dive: 4, protect: 4, fairCatch: 4, pass: 4,
+};
+
+/** Réduit la taille du texte jusqu'à ce qu'il tienne dans le bouton. */
+export function fitLabel(span: HTMLElement, box: HTMLElement, min = 9): void {
+  span.style.fontSize = '';
+  const fit = () => {
+    let size = parseFloat(getComputedStyle(span).fontSize) || 14;
+    const maxW = box.clientWidth * 0.82;
+    const maxH = box.clientHeight * 0.7;
+    let guard = 0;
+    while ((span.scrollWidth > maxW || span.scrollHeight > maxH) && size > min && guard++ < 20) {
+      size -= 1;
+      span.style.fontSize = `${size}px`;
+    }
+  };
+  if (box.isConnected && box.clientWidth) fit();
+  else requestAnimationFrame(fit);
+}
+
 export interface ButtonSpec {
   id: ButtonId;
   label: string;
-  /** Bouton maintenu (sprint, contenir, protéger) ou impulsion. */
+  /** Bouton maintenu (sprint, suivre, protéger) ou impulsion. */
   hold?: boolean;
-  big?: boolean;
-  accent?: boolean;
 }
 
 /**
@@ -74,17 +94,29 @@ export class TouchControls {
     }
   }
 
-  /** Met à jour les boutons visibles selon la phase (sans recréer s'ils sont identiques). */
+  /**
+   * Met à jour les boutons visibles selon la phase (sans recréer s'ils sont identiques).
+   * Disposition harmonisée : le premier bouton est l'action principale (grand, en bas à droite),
+   * chaque autre action garde toujours le même emplacement (mémoire musculaire).
+   */
   setButtons(specs: ButtonSpec[]): void {
     const key = specs.map((s) => `${s.id}:${s.label}`).join('|');
     if (key === this.currentSpecs) return;
     this.currentSpecs = key;
     this.buttonsEl.innerHTML = '';
-    for (const s of specs) {
+    const used = new Set<number>();
+    specs.forEach((s, i) => {
+      let slot = i === 0 ? 0 : SLOT_OF[s.id] ?? 1;
+      while (used.has(slot) && slot < 6) slot++;
+      used.add(slot);
       const b = document.createElement('button');
-      b.className = `ctl-btn${s.big ? ' big' : ''}${s.accent ? ' accent' : ''}`;
+      b.className = `ctl-btn${i === 0 ? ' primary' : ''}`;
       b.dataset.id = s.id;
-      b.textContent = s.label;
+      b.dataset.slot = String(slot);
+      b.setAttribute('aria-label', s.label);
+      const span = document.createElement('span');
+      span.textContent = s.label;
+      b.appendChild(span);
       b.addEventListener('pointerdown', (e) => {
         e.preventDefault();
         e.stopPropagation();
@@ -103,10 +135,19 @@ export class TouchControls {
       b.addEventListener('pointerup', release);
       b.addEventListener('pointercancel', release);
       b.addEventListener('lostpointercapture', release);
+      // évite le menu contextuel / la loupe d'iOS sur appui long
+      b.addEventListener('contextmenu', (e) => e.preventDefault());
       this.buttonsEl.appendChild(b);
-    }
+      fitLabel(span, b);
+    });
     // les boutons maintenus disparus sont relâchés
     for (const id of [...this.held]) if (!specs.some((s) => s.id === id)) this.held.delete(id);
+  }
+
+  /** Grise un bouton (temps de récupération) sans le recréer. */
+  setCooling(id: ButtonId, cooling: boolean): void {
+    const b = this.buttonsEl.querySelector(`[data-id="${id}"]`);
+    b?.classList.toggle('cooling', cooling);
   }
 
   private press(id: ButtonId, hold: boolean): void {

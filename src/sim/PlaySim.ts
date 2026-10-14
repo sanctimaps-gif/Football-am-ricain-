@@ -40,6 +40,7 @@ export class PlaySim {
   pitched = false;
   kicked = false;
   awaitingKick = false;
+  private queuedKick: number | null = null;
   kickDeadline = 0;
   scramble = false;
   completedTo = -1;
@@ -937,6 +938,7 @@ export class PlaySim {
 
   private updateKicking(dt: number, input: SimInput): void {
     const s = this.setup;
+    if (input.kickMeter !== null && !this.kicked && s.userSide === this.offense) this.queuedKick = input.kickMeter;
     const sub = s.offPlay?.subtype;
     if (s.kind === 'kickoff') {
       if (!this.kicked && this.awaitingKick) {
@@ -977,7 +979,9 @@ export class PlaySim {
     const userKicking = s.userSide === k.side && s.userKicks;
     let meter: number | null = null;
     if (userKicking) {
-      if (input.kickMeter !== null && this.t >= this.kickDeadline * 0.6) meter = input.kickMeter;
+      // un appui un peu en avance n'est pas perdu : il est appliqué dès que le kicker est prêt
+      if (input.kickMeter !== null) this.queuedKick = input.kickMeter;
+      if (this.queuedKick !== null && this.t >= this.kickDeadline * 0.6) meter = this.queuedKick;
       else if (this.t > this.kickDeadline + 3.5) meter = this.rng.range(-0.5, 0.5);
     } else if (this.t >= this.kickDeadline) {
       const acc = k.player.attrs.kickAccuracy;
