@@ -25,6 +25,8 @@ export function roundRobin(teamIds: string[], weeks: number, seed = 1): Schedule
   const fixed = ids[0];
   let rot = ids.slice(1);
   const totalRounds = n - 1;
+  const homeCount = new Map<string, number>();
+  const lastHome = new Map<string, boolean>();
   for (let r = 0; r < Math.min(weeks, totalRounds * 2); r++) {
     const arr = [fixed, ...rot];
     const games: ScheduledGame[] = [];
@@ -32,9 +34,13 @@ export function roundRobin(teamIds: string[], weeks: number, seed = 1): Schedule
       let a = arr[i];
       let b = arr[n - 1 - i];
       if (a === '__bye' || b === '__bye') continue;
-      // alternance domicile/extérieur, inversée pour la phase retour
-      if ((r + i) % 2 === 1) [a, b] = [b, a];
-      if (r >= totalRounds) [a, b] = [b, a];
+      // équilibre domicile/extérieur : l'équipe qui a le moins reçu joue à domicile
+      const ha = homeCount.get(a) ?? 0;
+      const hb = homeCount.get(b) ?? 0;
+      if (hb < ha || (hb === ha && (lastHome.get(a) ?? rng.chance(0.5)))) [a, b] = [b, a];
+      homeCount.set(a, (homeCount.get(a) ?? 0) + 1);
+      lastHome.set(a, true);
+      lastHome.set(b, false);
       games.push({ id: `w${r + 1}-${a}-${b}`, week: r + 1, home: a, away: b, played: false, score: null, overtime: false });
     }
     rounds.push(games);

@@ -72,6 +72,8 @@ export class MatchController {
   recentCalls: [string[], string[]] = [[], []];
   fatigue = new Map<string, number>();
   paused = false;
+  /** Entraînement / tutoriel : permet de fixer la situation avant chaque action. */
+  practiceHook: ((s: GameState) => void) | null = null;
   private accumulator = 0;
   private pendingBanner: MatchPhase | null = null;
 
@@ -192,6 +194,10 @@ export class MatchController {
   /** Prépare l'action suivante selon l'état des règles. */
   private prepareNext(fromBanner = false): void {
     const s = this.state;
+    if (this.practiceHook) {
+      this.practiceHook(s);
+      this.pendingBanner = null;
+    }
     if (s.finished) {
       this.setPhase('MatchFinished');
       this.bus.emit({ type: 'finished', winner: s.winner });

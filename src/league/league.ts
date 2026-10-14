@@ -146,15 +146,19 @@ function settleGameFinances(l: League, homeId: string): void {
   f.seasonRevenue += tickets + tv;
 }
 
-function weeklyExpenses(l: League): void {
+/** Finances hebdomadaires de saison régulière : droits TV, sponsors et produits dérivés contre salaires et installations. */
+function weeklyFinances(l: League): void {
+  if (l.phase !== 'regular') return;
   for (const team of l.teams) {
     const f = l.finances[team.id];
     if (!f) continue;
     const payroll = team.roster.reduce((t, p) => t + p.contract.salary, 0);
     const facilities = (f.facilities.training + f.facilities.medical + f.facilities.stadium) * 350;
     const cost = payroll / Math.max(1, l.weeks) + facilities;
-    f.cash -= cost;
+    const income = (130000 + f.fanSupport * 400) / Math.max(1, l.weeks);
+    f.cash += income - cost;
     f.seasonExpenses += cost;
+    f.seasonRevenue += income;
   }
 }
 
@@ -229,7 +233,7 @@ export function weekComplete(l: League): boolean {
 /** Passe à la semaine suivante ; gère le passage aux playoffs et la fin de saison. */
 export function advanceWeek(l: League): void {
   if (!weekComplete(l)) throw new Error('Semaine non terminée');
-  weeklyExpenses(l);
+  weeklyFinances(l);
   for (const t of l.teams) for (const p of t.roster) if (p.injuryWeeks > 0) p.injuryWeeks--;
   for (const t of l.teams) t.depth = mergeDepth(t);
   if (l.phase === 'regular') {

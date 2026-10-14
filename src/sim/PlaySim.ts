@@ -510,7 +510,9 @@ export class PlaySim {
       let dvx: number;
       let dvy: number;
       let sprint: boolean;
-      if (a.user && this.isUserMovable(a)) {
+      const idle = len2(input.moveX, input.moveY) < 0.12 && !input.contain;
+      const assisted = idle && this.ball.state === 'air' && (this.ball.target === a.idx || (a.idx === this.returnerIdx && (this.ball.flight === 'kickoff' || this.ball.flight === 'punt')));
+      if (a.user && this.isUserMovable(a) && !assisted) {
         [dvx, dvy, sprint] = this.userDesired(a, input);
       } else {
         [dvx, dvy, sprint] = think(this, a, dt);
