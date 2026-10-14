@@ -79,7 +79,7 @@ export function qbDecide(sim: PlaySim, qb: Agent): QbDecision {
   const off = sim.setup.offPlay!;
   const t = sim.t;
   const shotgun = off.formation === 'shotgun' || off.formation === 'shotgunTrips';
-  const dropTime = off.subtype === 'screen' ? 1.25 : sim.playAction ? 1.7 : shotgun ? 0.75 : 1.15;
+  const dropTime = off.subtype === 'screen' ? 1.3 : sim.playAction ? 2.1 : shotgun ? 1.25 : 1.6;
   if (t < dropTime) return { action: 'hold' };
   const aw = qb.player.attrs.awareness;
   const readTime = 0.55 - aw / 400;
@@ -99,6 +99,8 @@ export function qbDecide(sim: PlaySim, qb: Agent): QbDecision {
   let bestScore = -Infinity;
   for (let i = 0; i < reads; i++) {
     const r = progression[i];
+    // tracé pas encore développé (avant la cassure) : le QB attend
+    if (r.route.length > 1 && r.routeIdx < r.route.length - 1 && t < dropTime + 1.2) continue;
     const sep = openness(sim, qb, r);
     const depth = sim.toPlay(r.x, r.y).down;
     const needed = sim.setup.situation.toGo;

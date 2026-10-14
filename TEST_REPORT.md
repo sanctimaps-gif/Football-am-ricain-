@@ -68,7 +68,7 @@ données corrompues → valeurs par défaut ; version de sauvegarde future ignor
 
 ## Problèmes connus
 
-* Équilibrage : yards par réception élevés, courses très variables, peu de sacks (voir `ROADMAP.md`).
+* Équilibrage perfectible : courses très variables, matchs souvent à score élevé (voir `ROADMAP.md`).
 * Modèles/animations procéduraux provisoires.
 * Anglais partiel (repli automatique sur le français).
 * En carrière de joueur, si le joueur créé n'est pas sur le terrain pour une action, le contrôle revient au joueur par

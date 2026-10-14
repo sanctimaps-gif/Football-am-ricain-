@@ -6,8 +6,8 @@
 ## Phase 1 — Prototype 3D jouable ✅
 ## Phase 2 — Fondations sportives ✅
 ## Phase 3 — IA et tactiques ✅ (équilibrage à poursuivre)
-- 🟡 Équilibrage : passes ≈ 55 % de réussite, yards par réception élevés (≈20), courses très variables
-  (beaucoup de gains nuls, quelques grandes percées), peu de sacks. À affiner avec des sessions sur téléphone.
+- 🟡 Équilibrage (mesuré sur 300 passes IA) : ≈65 % de réussite, ≈9 yards en l'air + ≈6 après réception,
+  sacks présents ; courses très variables (beaucoup de gains courts, quelques grandes percées). À affiner sur téléphone.
 - ⬜ Audibles et ajustements avant le snap, motion pré-snap, double couverture ciblée.
 
 ## Phase 4 — Présentation et animations 🟡

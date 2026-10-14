@@ -1304,6 +1304,9 @@ export class PlaySim {
     }
     this.completedTo = a.idx;
     this.carrierRole = 'reception';
+    // le receveur sécurise le ballon : perte d'élan à la réception
+    a.vx *= 0.55;
+    a.vy *= 0.55;
     if (this.setup.userSide === a.side && !this.setup.lockedPlayerId) this.setUser(a.idx);
     else if (this.setup.userSide !== null && this.setup.userSide !== a.side && this.setup.autoSwitch && !this.setup.lockedPlayerId) this.switchUser();
   }
@@ -1422,7 +1425,8 @@ export class PlaySim {
       // libération (shed)
       const nearCarrier = c && c.side !== d.side && dist2(c.x, c.y, d.x, d.y) < 1.8 ? 2.6 : 1;
       const openField = c && c.side !== d.side && this.toPlay(c.x, c.y).down > 3 ? 1.5 : 1;
-      const rate = 0.1 * Math.exp(diff / 20) * nearCarrier * openField * (this.thrown ? 0.6 : 1);
+      const passRush = this.isPassPlay && !this.thrown ? 2.6 : 1;
+      const rate = 0.1 * Math.exp(diff / 20) * nearCarrier * openField * passRush * (this.thrown ? 0.6 : 1);
       if (this.rng.chance(rate * dt)) {
         const b = this.agents[d.engagedWith[0]];
         d.engagedWith.splice(0, 1);
