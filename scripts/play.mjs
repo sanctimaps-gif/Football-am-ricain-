@@ -4,7 +4,7 @@ const page = await browser.newPage({ viewport: { width: 844, height: 390 }, hasT
 const errors = [];
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-await page.goto('http://localhost:5173/?quality=low');
+await page.goto('http://localhost:5173/dev.html?quality=low');
 await page.waitForTimeout(800);
 const tap = (sel) => page.evaluate((sel) => { const b = document.querySelector(sel); if (!b) return false; const r = b.getBoundingClientRect(); b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1, clientX: r.x + 5, clientY: r.y + 5 })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 })); b.click(); return true; }, sel);
 await page.mouse.click(400, 200);

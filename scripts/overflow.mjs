@@ -5,7 +5,7 @@ const problems = new Set();
 for (const [w, h] of sizes) {
   const page = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: true });
   page.on('pageerror', (e) => console.log('pageerror', e.message));
-  await page.goto('http://localhost:5173/?quality=low');
+  await page.goto('http://localhost:5173/dev.html?quality=low');
   await page.waitForTimeout(700);
   await page.mouse.click(w / 2, h / 2);
   const tap = (sel) => page.evaluate((sel) => { const b = document.querySelector(sel); if (!b) return false; b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 })); b.click(); return true; }, sel);

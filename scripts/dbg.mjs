@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const page = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true });
 page.on('pageerror', (e) => console.log('pageerror: ' + e.message));
-await page.goto('http://localhost:5173/');
+await page.goto('http://localhost:5173/dev.html');
 await page.waitForTimeout(800);
 await page.mouse.click(400, 200);
 await page.waitForTimeout(400);

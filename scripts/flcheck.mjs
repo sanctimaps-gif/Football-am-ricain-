@@ -2,7 +2,7 @@ import { chromium } from '@playwright/test';
 const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
 const sizes = [[667, 375], [844, 390]];
 const problems = new Set();
-const url = process.argv[2] ?? 'http://localhost:5173/?quality=low';
+const url = process.argv[2] ?? 'http://localhost:5173/dev.html?quality=low';
 for (const [w, h] of sizes) {
   const page = await browser.newPage({ viewport: { width: w, height: h }, hasTouch: true });
   page.on('pageerror', (e) => problems.add('pageerror ' + e.message));

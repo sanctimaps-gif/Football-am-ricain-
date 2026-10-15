@@ -35,7 +35,7 @@ test.describe('Gridiron Dynasty', () => {
 
   test('lancement, menu et match rapide jusqu’à une passe', async ({ page }) => {
     const errors = collectErrors(page);
-    await page.goto('/?quality=low');
+    await page.goto('/dev.html?quality=low');
     await expect(page.locator('.splash')).toBeVisible();
     await page.mouse.click(400, 200);
     await expect(page.locator('.menu-grid')).toBeVisible();
@@ -74,7 +74,7 @@ test.describe('Gridiron Dynasty', () => {
   });
 
   test('pause et reprise sans perte d’état', async ({ page }) => {
-    await page.goto('/?quality=low');
+    await page.goto('/dev.html?quality=low');
     await page.mouse.click(400, 200);
     await tapWhen(page, '[data-action=spectator]');
     await expect.poll(() => phase(page), { timeout: 60000 }).toBe('LivePlay');
@@ -98,7 +98,7 @@ const RESOLUTIONS = [
 for (const r of RESOLUTIONS) {
   test(`interface lisible et boutons dans l’écran — ${r.name}`, async ({ page }) => {
     await page.setViewportSize({ width: r.width, height: r.height });
-    await page.goto('/?quality=low');
+    await page.goto('/dev.html?quality=low');
     await page.mouse.click(r.width / 2, r.height / 2);
     await expect(page.locator('.menu-grid')).toBeVisible();
     const inView = async (sel: string) => {

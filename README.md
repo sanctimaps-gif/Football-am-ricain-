@@ -30,6 +30,11 @@ Aucune ressource externe (modèles, sons, polices, images) : tout est généré 
 
 ## Lancer le jeu
 
+* `index.html` à la racine est le **jeu compilé autonome** (généré par `npm run build`) : il s'ouvre directement
+  via GitHub Pages, quelle que soit la branche publiée.
+* `dev.html` est la page de développement (`npm run dev`, puis http://localhost:5173/dev.html).
+
+
 ```bash
 npm install
 npm run dev        # http://localhost:5173 (ajoutez ?fps pour afficher les FPS, ?quality=low pour forcer la qualité basse)

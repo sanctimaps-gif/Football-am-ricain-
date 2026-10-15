@@ -5,8 +5,8 @@
   "type": "module",
   "description": "Jeu de football américain 3D pour mobile (paysage) — Three.js + TypeScript",
   "scripts": {
-    "dev": "vite --host",
-    "build": "tsc --noEmit && vite build",
+    "dev": "vite --host --open /dev.html",
+    "build": "tsc --noEmit && vite build && node scripts/pages.mjs",
     "preview": "vite preview --host",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",

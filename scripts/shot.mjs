@@ -4,7 +4,7 @@ const page = await browser.newPage({ viewport: { width: 844, height: 390 }, devi
 const errors = [];
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
-await page.goto('http://localhost:5173/?fps');
+await page.goto('http://localhost:5173/dev.html?fps');
 await page.waitForTimeout(1500);
 await page.screenshot({ path: 'shots/01-splash.png' });
 await page.mouse.click(400, 200);

@@ -3,7 +3,7 @@ const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromi
 for (const q of ['low', 'medium']) {
   const page = await browser.newPage({ viewport: { width: 844, height: 390 }, hasTouch: true });
   page.on('pageerror', (e) => console.log('pageerror', e.message));
-  await page.goto(`http://localhost:5173/?quality=${q}`);
+  await page.goto(`http://localhost:5173/dev.html?quality=${q}`);
   await page.waitForTimeout(600);
   await page.mouse.click(400, 200);
   await page.evaluate(() => document.querySelector('[data-action=spectator]').click());

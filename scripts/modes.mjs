@@ -5,7 +5,7 @@ const errors = [];
 page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
 page.on('dialog', (d) => d.accept());
-await page.goto('http://localhost:5173/?quality=low');
+await page.goto('http://localhost:5173/dev.html?quality=low');
 await page.waitForTimeout(800);
 const tap = (sel) => page.evaluate((sel) => { const b = document.querySelector(sel); if (!b) return false; b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 })); b.click(); return true; }, sel);
 const shot = async (n) => { await page.waitForTimeout(500); await page.screenshot({ path: `shots/${n}.png` }); };
