@@ -1,0 +1,23 @@
+// Capture comparative du rendu : node scripts/gfx.mjs <étiquette> [qualité]
+import { chromium } from '@playwright/test';
+const label = process.argv[2] ?? 'cur';
+const quality = process.argv[3] ?? 'high';
+const browser = await chromium.launch({ executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome', args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] });
+const page = await browser.newPage({ viewport: { width: 844, height: 390 }, deviceScaleFactor: 1 });
+const errs = []; page.on('pageerror', (e) => errs.push(e.message)); page.on('console', (m) => m.type() === 'error' && errs.push(m.text()));
+await page.goto(`http://localhost:5173/dev.html?quality=${quality}`); await page.waitForTimeout(1200);
+await page.screenshot({ path: `shots/gfx-${label}-${quality}-menu.png` });
+await page.mouse.click(400, 200); await page.waitForTimeout(1200);
+const tap = (sel) => page.evaluate((sel) => { const b = document.querySelector(sel); if (!b) return; b.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, pointerId: 1 })); b.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 })); b.click(); }, sel);
+await tap('[data-action="ext:challenges"]'); await page.waitForTimeout(1000); await tap('[data-action="play:drive"]');
+await page.waitForFunction(() => window.__gd.current.mc?.phase === 'PlaySelection', null, { timeout: 90000, polling: 500 });
+await page.waitForTimeout(400); await tap('[data-action="off:quickSlants"]');
+await page.waitForFunction(() => window.__gd.current.mc?.phase === 'PreSnap', null, { timeout: 90000, polling: 500 });
+await page.waitForTimeout(2500);
+await page.screenshot({ path: `shots/gfx-${label}-${quality}-presnap.png` });
+await tap('.ctl-btn[data-id=snap]'); await page.waitForTimeout(1600);
+await page.screenshot({ path: `shots/gfx-${label}-${quality}-live.png` });
+const t0 = Date.now(); const fr = await page.evaluate(() => new Promise((r) => { let n = 0; const s = performance.now(); const f = () => { n++; if (performance.now() - s < 3000) requestAnimationFrame(f); else r(n / 3); }; requestAnimationFrame(f); }));
+console.log(label, quality, 'fps (logiciel)', fr.toFixed(1), 'drawcalls', await page.evaluate(() => window.__gd.renderer?.drawCalls), errs);
+void t0;
+await browser.close();

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.4.1 — rendu et commandes
+
+### Ajouté
+- Éclairage d'environnement procédural (reflets des projecteurs), casques vernis, ciel de nuit étoilé, halos des
+  projecteurs, post-traitement (bloom en qualité haute, étalonnage, vignettage, anticrénelage MSAA).
+- Gazon réaliste : bruit multi-échelle, bandes de tonte, usure au centre, relief des brins (carte de normales).
+- Spectateurs avec têtes et vêtements aux tons naturels.
+- Multi-touch : joystick et boutons utilisables en même temps (événements tactiles suivis doigt par doigt,
+  geste de zoom iOS neutralisé, relâchement fiable même si le bouton change pendant l'appui).
+
+### Modifié
+- Tableau de score compact.
+- `index.html` à la racine = jeu compilé autonome (GitHub Pages) ; page de développement : `dev.html`.
+
 ## 0.4.0 — inspirations Rugby Nations 26 et Madden Mobile
 
 ### Ajouté

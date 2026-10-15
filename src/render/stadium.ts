@@ -1,11 +1,14 @@
 import * as THREE from 'three';
 import { FIELD } from '../core/config';
 import type { Team } from '../data/types';
-import { createFieldTexture, FIELD_MARGIN } from './fieldTexture';
+import { glowTexture } from './effects';
+import { createFieldTexture, createGrassNormalMap, FIELD_MARGIN } from './fieldTexture';
 
 export interface StadiumParts {
   group: THREE.Group;
   crowd: THREE.InstancedMesh;
+  /** Têtes des spectateurs (suivent les sauts du corps). */
+  heads: THREE.InstancedMesh;
   crowdBase: Float32Array; // y de base de chaque spectateur
   crowdCount: number;
   dispose(): void;
@@ -49,13 +52,22 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
   const tex = createFieldTexture(home, quality, maxAniso);
   disposables.push(tex);
   const fieldGeo = new THREE.PlaneGeometry(FIELD.length + FIELD_MARGIN * 2, FIELD.width + FIELD_MARGIN * 2);
-  const fieldMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.95, metalness: 0 });
+  const fieldMat = new THREE.MeshStandardMaterial({ map: tex, roughness: 0.92, metalness: 0 });
+  if (quality !== 'low') {
+    // relief des brins d'herbe (répété) : la lumière rasante des projecteurs fait vivre la pelouse
+    const normal = createGrassNormalMap(quality === 'high' ? 256 : 128);
+    normal.repeat.set((FIELD.length + FIELD_MARGIN * 2) / 2.5, (FIELD.width + FIELD_MARGIN * 2) / 2.5);
+    normal.anisotropy = maxAniso;
+    fieldMat.normalMap = normal;
+    fieldMat.normalScale.set(0.3, 0.3);
+    disposables.push(normal);
+  }
   const field = new THREE.Mesh(fieldGeo, fieldMat);
   field.rotation.x = -Math.PI / 2;
   field.receiveShadow = true;
   group.add(field);
   // abords (piste) autour du terrain
-  const apron = new THREE.Mesh(new THREE.PlaneGeometry(190, 120), new THREE.MeshStandardMaterial({ color: '#24502a', roughness: 1 }));
+  const apron = new THREE.Mesh(new THREE.PlaneGeometry(190, 120), new THREE.MeshStandardMaterial({ color: '#2b4f2a', roughness: 1 }));
   apron.rotation.x = -Math.PI / 2;
   apron.position.y = -0.02;
   apron.receiveShadow = true;
@@ -138,6 +150,8 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
   const personGeo = new THREE.BoxGeometry(0.55, 0.9, 0.35);
   const crowdMat = new THREE.MeshLambertMaterial({ color: '#ffffff' });
   const crowd = new THREE.InstancedMesh(personGeo, crowdMat, crowdCount);
+  const heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.17, 6, 5), new THREE.MeshLambertMaterial({ color: '#ffffff' }), crowdCount);
+  const skins = ['#f1d3bc', '#e0b291', '#c68e68', '#9c6644', '#6f4529'];
   const crowdBase = new Float32Array(crowdCount * 3);
   const m = new THREE.Matrix4();
   const q = new THREE.Quaternion();
@@ -159,15 +173,26 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
     crowdBase[i * 3 + 1] = ly;
     crowdBase[i * 3 + 2] = wz;
     color.set(palette[Math.floor(Math.random() * palette.length)]);
-    color.offsetHSL(0, 0, (Math.random() - 0.5) * 0.15);
+    // tons de vêtements plus naturels (moins saturés, un peu plus sombres)
+    color.offsetHSL(0, -0.18, -0.06 + (Math.random() - 0.5) * 0.16);
     crowd.setColorAt(i, color);
+    v.set(wx, ly + 0.62, wz);
+    m.compose(v, q, s);
+    heads.setMatrixAt(i, m);
+    color.set(skins[Math.floor(Math.random() * skins.length)]);
+    heads.setColorAt(i, color);
   }
   crowd.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-  group.add(crowd);
+  heads.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  group.add(crowd, heads);
 
   // Pylônes d'éclairage
   const towerMat = new THREE.MeshStandardMaterial({ color: '#3d434c', metalness: 0.5, roughness: 0.5 });
-  const lampMat = new THREE.MeshBasicMaterial({ color: '#fffbe6' });
+  // panneaux de projecteurs très lumineux (HDR) : ils déclenchent le halo du post-traitement
+  const lampMat = new THREE.MeshBasicMaterial({ color: new THREE.Color(6, 5.7, 5), fog: false });
+  const glowTex = glowTexture();
+  disposables.push(glowTex);
+  const glowMat = new THREE.SpriteMaterial({ map: glowTex, color: '#fff3d6', blending: THREE.AdditiveBlending, transparent: true, depthWrite: false, fog: false, opacity: 0.85 });
   for (const sx of [-1, 1]) {
     for (const sz of [-1, 1]) {
       const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.7, 34, 8), towerMat);
@@ -177,6 +202,10 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
       panel.position.set(sx * 68, 35, sz * 50);
       panel.lookAt(0, 0, 0);
       group.add(panel);
+      const glow = new THREE.Sprite(glowMat);
+      glow.position.set(sx * 66, 35, sz * 48.5);
+      glow.scale.set(26, 26, 1);
+      group.add(glow);
     }
   }
   // Écran géant
@@ -188,6 +217,7 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
   return {
     group,
     crowd,
+    heads,
     crowdBase,
     crowdCount,
     dispose() {
@@ -203,18 +233,42 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
   };
 }
 
-/** Ciel en dégradé (sphère inversée). */
-export function buildSky(): THREE.Mesh {
-  const geo = new THREE.SphereGeometry(400, 24, 12);
-  const top = new THREE.Color('#0b1a33');
-  const bottom = new THREE.Color('#3b5a86');
-  const colors: number[] = [];
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const y = pos.getY(i) / 400;
-    const c = bottom.clone().lerp(top, Math.max(0, Math.min(1, y * 1.6 + 0.1)));
-    colors.push(c.r, c.g, c.b);
+/** Ciel de nuit : dégradé, halo des projecteurs au-dessus du stade, étoiles. */
+export function buildSky(quality: 'low' | 'medium' | 'high' = 'medium'): THREE.Group {
+  const g = new THREE.Group();
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(400, 32, 16), new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    depthWrite: false,
+    fog: false,
+    vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+    fragmentShader: `varying vec3 vP;
+      void main(){
+        float h = max(vP.y, 0.0);
+        vec3 top = vec3(0.01, 0.02, 0.055);
+        vec3 mid = vec3(0.04, 0.075, 0.16);
+        vec3 glow = vec3(0.26, 0.28, 0.34);
+        vec3 c = mix(mid, top, smoothstep(0.05, 0.5, h));
+        // halo diffus de l'éclairage du stade près de l'horizon
+        c += glow * exp(-h * 12.0) * 0.3;
+        gl_FragColor = vec4(c, 1.0);
+      }`,
+  }));
+  g.add(dome);
+  if (quality !== 'low') {
+    const n = quality === 'high' ? 900 : 450;
+    const pos = new Float32Array(n * 3);
+    let st = 99;
+    const rnd = () => ((st = (Math.imul(st, 1664525) + 1013904223) >>> 0) / 4294967296);
+    for (let i = 0; i < n; i++) {
+      const az = rnd() * Math.PI * 2;
+      const el = 0.18 + rnd() * 1.3;
+      pos[i * 3] = Math.cos(az) * Math.cos(el) * 380;
+      pos[i * 3 + 1] = Math.sin(el) * 380;
+      pos[i * 3 + 2] = Math.sin(az) * Math.cos(el) * 380;
+    }
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    g.add(new THREE.Points(geo, new THREE.PointsMaterial({ color: '#cfd8ff', size: 1.3, sizeAttenuation: false, fog: false, transparent: true, opacity: 0.7, depthWrite: false })));
   }
-  geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
-  return new THREE.Mesh(geo, new THREE.MeshBasicMaterial({ vertexColors: true, side: THREE.BackSide, fog: false }));
+  return g;
 }

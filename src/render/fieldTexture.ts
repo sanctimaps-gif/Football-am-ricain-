@@ -15,21 +15,8 @@ export function createFieldTexture(home: Team, quality: 'low' | 'medium' | 'high
   const X = (yd: number) => (yd + marginYd) * pxPerYard;
   const Y = (yd: number) => (yd + marginYd) * pxPerYard;
 
-  // gazon de base
-  ctx.fillStyle = '#2f6b2a';
-  ctx.fillRect(0, 0, canvas.width, canvas.height);
-  // bandes tondues tous les 5 yards
-  for (let i = 0; i < 24; i++) {
-    ctx.fillStyle = i % 2 === 0 ? '#3a7d32' : '#33722c';
-    ctx.fillRect(X(i * 5), Y(0), 5 * pxPerYard, FIELD.width * pxPerYard);
-  }
-  // bruit (texture de gazon)
-  const speckles = Math.round((canvas.width * canvas.height) / 90);
-  for (let i = 0; i < speckles; i++) {
-    const v = Math.random();
-    ctx.fillStyle = v < 0.5 ? 'rgba(20,60,20,0.18)' : 'rgba(120,170,90,0.12)';
-    ctx.fillRect(Math.random() * canvas.width, Math.random() * canvas.height, 2, 2);
-  }
+  // gazon : bruit multi-échelle (touffes, irrégularités), bandes de tonte alternées, usure entre les hash marks
+  paintGrass(ctx, canvas.width, canvas.height, pxPerYard, X, Y);
   // en-buts
   const ez = (x0: number, label: string, color: string) => {
     ctx.fillStyle = color;
@@ -48,7 +35,7 @@ export function createFieldTexture(home: Team, quality: 'low' | 'medium' | 'high
   ez(110, GAME_NAME, '#1a2433');
 
   const line = (x0: number, y0: number, x1: number, y1: number, w = 0.13) => {
-    ctx.strokeStyle = '#f4f4f0';
+    ctx.strokeStyle = 'rgba(244,244,236,0.9)';
     ctx.lineWidth = Math.max(1, w * pxPerYard);
     ctx.beginPath();
     ctx.moveTo(X(x0), Y(y0));
@@ -56,7 +43,7 @@ export function createFieldTexture(home: Team, quality: 'low' | 'medium' | 'high
     ctx.stroke();
   };
   // lignes de touche et de fond
-  ctx.strokeStyle = '#f4f4f0';
+  ctx.strokeStyle = 'rgba(246,246,240,0.95)';
   ctx.lineWidth = 0.35 * pxPerYard;
   ctx.strokeRect(X(0), Y(0), FIELD.length * pxPerYard, FIELD.width * pxPerYard);
   // lignes de but (plus épaisses)
@@ -108,6 +95,9 @@ export function createFieldTexture(home: Team, quality: 'low' | 'medium' | 'high
   ctx.fillText(home.logo.glyph, 0, pxPerYard * 0.3);
   ctx.restore();
 
+  // la peinture laisse voir le gazon : léger grain par-dessus les lignes et les zones peintes
+  grainOverlay(ctx, canvas.width, canvas.height);
+
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.anisotropy = maxAniso;
@@ -117,3 +107,115 @@ export function createFieldTexture(home: Team, quality: 'low' | 'medium' | 'high
 }
 
 export const FIELD_MARGIN = 4;
+
+/** Bruit de valeur lissé (déterministe) pour le gazon. */
+function valueNoise(w: number, h: number, cell: number, seed: number): Float32Array {
+  const gw = Math.ceil(w / cell) + 2;
+  const gh = Math.ceil(h / cell) + 2;
+  const grid = new Float32Array(gw * gh);
+  let st = seed >>> 0 || 1;
+  for (let i = 0; i < grid.length; i++) {
+    st = (Math.imul(st, 1664525) + 1013904223) >>> 0;
+    grid[i] = st / 4294967296;
+  }
+  const out = new Float32Array(w * h);
+  for (let y = 0; y < h; y++) {
+    const gy = y / cell;
+    const y0 = Math.floor(gy);
+    const fy = gy - y0;
+    const sy = fy * fy * (3 - 2 * fy);
+    for (let x = 0; x < w; x++) {
+      const gx = x / cell;
+      const x0 = Math.floor(gx);
+      const fx = gx - x0;
+      const sx = fx * fx * (3 - 2 * fx);
+      const a = grid[y0 * gw + x0];
+      const b = grid[y0 * gw + x0 + 1];
+      const c = grid[(y0 + 1) * gw + x0];
+      const d = grid[(y0 + 1) * gw + x0 + 1];
+      out[y * w + x] = a + (b - a) * sx + (c - a) * sy + (a - b - c + d) * sx * sy;
+    }
+  }
+  return out;
+}
+
+function paintGrass(ctx: CanvasRenderingContext2D, w: number, h: number, ppy: number, X: (yd: number) => number, Y: (yd: number) => number): void {
+  const img = ctx.createImageData(w, h);
+  const d = img.data;
+  const big = valueNoise(w, h, Math.max(8, ppy * 6), 11);
+  const mid = valueNoise(w, h, Math.max(3, ppy * 1.2), 23);
+  const fieldX0 = X(0);
+  const fieldX1 = X(120);
+  const fieldY0 = Y(0);
+  const fieldY1 = Y(53.3);
+  const hashA = Y(53.3 / 2 - 3.1);
+  const hashB = Y(53.3 / 2 + 3.1);
+  let st = 7;
+  for (let y = 0; y < h; y++) {
+    for (let x = 0; x < w; x++) {
+      const i = y * w + x;
+      st = (Math.imul(st, 1103515245) + 12345) >>> 0;
+      const fine = (st >>> 8) / 16777216;
+      // bande de tonte (5 yards) : clair / foncé
+      const inField = x >= fieldX0 && x < fieldX1 && y >= fieldY0 && y < fieldY1;
+      const band = inField ? (Math.floor((x - fieldX0) / (5 * ppy)) % 2 === 0 ? 1 : -1) : 0;
+      // usure : zone centrale entre les hash marks, plus marquée près du milieu du terrain
+      const midField = 1 - Math.min(1, Math.abs(x - (fieldX0 + fieldX1) / 2) / ((fieldX1 - fieldX0) * 0.42));
+      const wear = inField && y > hashA && y < hashB ? Math.max(0, big[i] - 0.45) * 0.9 * (0.35 + midField * 0.65) : 0;
+      const v = (big[i] - 0.5) * 0.16 + (mid[i] - 0.5) * 0.12 + (fine - 0.5) * 0.12 + band * 0.05;
+      let r = 44 + v * 90;
+      let g = 92 + v * 130;
+      let b = 42 + v * 60;
+      // usure : vers un vert-jaune terne et terre
+      r += wear * 70;
+      g += wear * 18;
+      b += wear * 20;
+      d[i * 4] = Math.max(0, Math.min(255, r));
+      d[i * 4 + 1] = Math.max(0, Math.min(255, g));
+      d[i * 4 + 2] = Math.max(0, Math.min(255, b));
+      d[i * 4 + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+}
+
+/** Grain léger appliqué à toute la texture (peinture et gazon mêlés). */
+function grainOverlay(ctx: CanvasRenderingContext2D, w: number, h: number): void {
+  const n = Math.round((w * h) / 30);
+  for (let i = 0; i < n; i++) {
+    ctx.fillStyle = Math.random() < 0.5 ? 'rgba(10,40,10,0.10)' : 'rgba(255,255,255,0.035)';
+    ctx.fillRect(Math.random() * w, Math.random() * h, 1.5, 1.5);
+  }
+}
+
+/** Carte de normales du gazon (brins), répétée sur le terrain pour le relief fin sous la lumière. */
+export function createGrassNormalMap(size = 256): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = c.height = size;
+  const ctx = c.getContext('2d')!;
+  const hgt = valueNoise(size, size, 3, 91);
+  const fine = valueNoise(size, size, 1.3, 57);
+  const H = (x: number, y: number) => {
+    const xx = (x + size) % size;
+    const yy = (y + size) % size;
+    return hgt[yy * size + xx] * 0.6 + fine[yy * size + xx] * 0.4;
+  };
+  const img = ctx.createImageData(size, size);
+  for (let y = 0; y < size; y++) {
+    for (let x = 0; x < size; x++) {
+      const dx = (H(x + 1, y) - H(x - 1, y)) * 3.2;
+      const dy = (H(x, y + 1) - H(x, y - 1)) * 3.2;
+      const len = Math.hypot(dx, dy, 1);
+      const i = (y * size + x) * 4;
+      img.data[i] = ((-dx / len) * 0.5 + 0.5) * 255;
+      img.data[i + 1] = ((-dy / len) * 0.5 + 0.5) * 255;
+      img.data[i + 2] = ((1 / len) * 0.5 + 0.5) * 255;
+      img.data[i + 3] = 255;
+    }
+  }
+  ctx.putImageData(img, 0, 0);
+  const t = new THREE.CanvasTexture(c);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.generateMipmaps = true;
+  return t;
+}

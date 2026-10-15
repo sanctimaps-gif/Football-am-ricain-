@@ -13,7 +13,7 @@ export interface TeamLook {
   jersey: THREE.MeshStandardMaterial;
   pads: THREE.MeshStandardMaterial;
   pants: THREE.MeshStandardMaterial;
-  helmet: THREE.MeshStandardMaterial;
+  helmet: THREE.MeshStandardMaterial | THREE.MeshPhysicalMaterial;
   stripe: THREE.MeshStandardMaterial;
   socks: THREE.MeshStandardMaterial;
   sleeves: THREE.MeshStandardMaterial;
@@ -38,7 +38,8 @@ export function makeTeamLook(team: Team, home: boolean): TeamLook {
     gloves: std(u.gloves ?? '#1b1b1b', 0.7),
     mask: std(u.mask ?? '#c9ced6', 0.3, 0.6),
     pants: new THREE.MeshStandardMaterial({ color: home ? u.homePants : u.awayPants, roughness: 0.65 }),
-    helmet: new THREE.MeshStandardMaterial({ color: u.helmet, roughness: 0.25, metalness: 0.35 }),
+    // casque verni : vernis (clearcoat) qui reflète les projecteurs
+    helmet: new THREE.MeshPhysicalMaterial({ color: u.helmet, roughness: 0.35, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.08 }),
     stripe: new THREE.MeshStandardMaterial({ color: u.stripe, roughness: 0.4 }),
     socks: std(u.socks ?? (home ? team.colors.primary : team.colors.secondary === '#FFFFFF' ? team.colors.primary : team.colors.secondary), 0.8),
     numberColor: home ? u.numberColor : team.colors.primary,

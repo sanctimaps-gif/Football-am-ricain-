@@ -126,5 +126,65 @@ for (const r of RESOLUTIONS) {
     }, { timeout: 60000, intervals: [400] }).toMatch(/LivePlay|PassInFlight|BallDead/);
     expect(await inView('.ctl-btn, .hud-btn.pause, .hud-btn.help')).toBeGreaterThan(2);
     await page.screenshot({ path: `test-results/match-${r.name}.png` });
-  });
+  
+});
 }
+
+test.describe('Commandes tactiles', () => {
+  test.use({ viewport: { width: 844, height: 390 }, hasTouch: true });
+
+  test('multi-touch : joystick tenu + bouton appuyé en même temps', async ({ page }) => {
+    const errors = collectErrors(page);
+    await page.goto('/dev.html?quality=low');
+    await page.mouse.click(400, 200);
+    await tapWhen(page, '[data-action="ext:challenges"]');
+    await tapWhen(page, '[data-action="play:drive"]');
+    await waitPhase(page, 'PlaySelection');
+    await tapWhen(page, '[data-action="off:quickSlants"]');
+    await waitPhase(page, 'PreSnap');
+    const cdp = await page.context().newCDPSession(page);
+    const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', points: { x: number; y: number; id: number }[]) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points });
+    const center = async (sel: string) => {
+      const b = await page.locator(sel).boundingBox();
+      return { x: b!.x + b!.width / 2, y: b!.y + b!.height / 2 };
+    };
+    const read = () => page.evaluate(() => {
+      const c = (window as any).__gd.current.controls;
+      const i = c.read({ fx: 0, fy: 1, rx: 1, ry: 0 });
+      return { x: i.moveX, y: i.moveY, sprint: i.sprint, stick: c.stickId };
+    });
+    // doigt 1 : joystick poussé vers le haut et maintenu
+    const A = { x: 150, y: 300, id: 1 };
+    await touch('touchStart', [A]);
+    const A2 = { ...A, y: 250 };
+    await touch('touchMove', [A2]);
+    expect((await read()).y).toBeGreaterThan(0.5);
+    // doigt 2 : HIKE pendant que le joystick reste tenu
+    const hike = await center('.ctl-btn[data-id=snap]');
+    const B = { ...hike, id: 2 };
+    await touch('touchStart', [A2, B]);
+    // (CDP) touchEnd liste les doigts qui se lèvent : le doigt 2 se lève, le doigt 1 reste posé
+    await touch('touchEnd', [B]);
+    await expect.poll(() => phase(page), { timeout: 20000 }).not.toBe('PreSnap');
+    let r = await read();
+    expect(r.stick).toBe('t1');
+    expect(r.y).toBeGreaterThan(0.5);
+    // doigt 3 : SPRINT maintenu en même temps que le joystick
+    await expect(page.locator('.ctl-btn[data-id=sprint]')).toBeVisible({ timeout: 20000 });
+    const sp = await center('.ctl-btn[data-id=sprint]');
+    const C = { ...sp, id: 3 };
+    await touch('touchStart', [A2, C]);
+    r = await read();
+    expect(r.sprint).toBe(true);
+    expect(r.y).toBeGreaterThan(0.5);
+    // on relâche le sprint : le joystick reste actif
+    await touch('touchEnd', [C]);
+    r = await read();
+    expect(r.sprint).toBe(false);
+    expect(r.y).toBeGreaterThan(0.5);
+    await touch('touchEnd', [A2]);
+    r = await read();
+    expect(r.stick).toBeNull();
+    expect(errors).toEqual([]);
+  });
+});

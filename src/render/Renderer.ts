@@ -8,6 +8,7 @@ import type { PlaySim } from '../sim/PlaySim';
 import type { Agent } from '../sim/types';
 import { makeTeamLook, PlayerBatcher, PlayerView, type TeamLook } from './playerModel';
 import { buildSky, buildStadium, toScene, type StadiumParts } from './stadium';
+import { createStadiumEnvironment, PostFX } from './effects';
 
 export type Quality = 'low' | 'medium' | 'high';
 export type CameraMode = 'behind' | 'broadcast';
@@ -40,6 +41,7 @@ export class GameRenderer {
   private targetRing: THREE.Mesh;
   private landing: THREE.Mesh;
   private sun: THREE.DirectionalLight;
+  private post: PostFX | null = null;
   private particles: { mesh: THREE.InstancedMesh; vel: Float32Array; pos: Float32Array; life: Float32Array; next: number };
   private camPos = new THREE.Vector3(0, 30, 40);
   private camLook = new THREE.Vector3();
@@ -62,16 +64,18 @@ export class GameRenderer {
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'high' ? 2 : quality === 'medium' ? 1.5 : 1));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-    this.renderer.toneMappingExposure = 1.05;
+    this.renderer.toneMappingExposure = 1.0;
     this.renderer.shadowMap.enabled = quality !== 'low';
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.camera = new THREE.PerspectiveCamera(48, 16 / 9, 0.3, 900);
     this.batcher = new PlayerBatcher(this.scene, quality !== 'low');
-    this.scene.fog = new THREE.Fog('#2a4166', 160, 420);
-    this.scene.add(buildSky());
-    // éclairage : ambiance + projecteurs (une seule lumière directionnelle ombrée)
-    this.scene.add(new THREE.HemisphereLight('#dfe9ff', '#2d4a24', 0.85));
-    this.sun = new THREE.DirectionalLight('#fff6e0', 2.1);
+    this.scene.fog = new THREE.Fog('#16223a', 220, 520);
+    this.scene.add(buildSky(quality));
+    // éclairage : environnement PBR procédural (reflets des projecteurs) + lumière principale ombrée + contre-jour
+    this.scene.environment = createStadiumEnvironment(this.renderer);
+    this.scene.environmentIntensity = 0.6;
+    this.scene.add(new THREE.HemisphereLight('#cfdcff', '#22401f', 0.42));
+    this.sun = new THREE.DirectionalLight('#fff3dc', 2.5);
     this.sun.position.set(-30, 60, 25);
     this.sun.castShadow = quality !== 'low';
     const sm = quality === 'high' ? 2048 : 1024;
@@ -85,7 +89,7 @@ export class GameRenderer {
     sc.far = 140;
     this.sun.shadow.bias = -0.0008;
     this.scene.add(this.sun, this.sun.target);
-    const fill = new THREE.DirectionalLight('#cfe0ff', 0.6);
+    const fill = new THREE.DirectionalLight('#c9dcff', 0.85);
     fill.position.set(40, 40, -30);
     this.scene.add(fill);
 
@@ -133,6 +137,7 @@ export class GameRenderer {
     pMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
     pMesh.frustumCulled = false;
     this.scene.add(pMesh);
+    if (quality !== 'low') this.post = new PostFX(this.renderer, this.scene, this.camera, quality);
     this.particles = { mesh: pMesh, vel: new Float32Array(pCount * 3), pos: new Float32Array(pCount * 3), life: new Float32Array(pCount), next: 0 };
     for (let i = 0; i < pCount; i++) {
       this.tmpM.makeScale(0, 0, 0);
@@ -155,6 +160,7 @@ export class GameRenderer {
 
   resize(w: number, h: number): void {
     this.renderer.setSize(w, h, false);
+    this.post?.setSize(w, h, this.renderer.getPixelRatio());
     this.camera.aspect = w / h;
     // en paysage étroit, champ de vision un peu plus large
     this.camera.fov = w / h < 1.6 ? 54 : 46;
@@ -228,8 +234,12 @@ export class GameRenderer {
       st.crowd.getMatrixAt(i, this.tmpM);
       this.tmpM.setPosition(this.tmpV);
       st.crowd.setMatrixAt(i, this.tmpM);
+      this.tmpV.y += 0.62;
+      this.tmpM.setPosition(this.tmpV);
+      st.heads.setMatrixAt(i, this.tmpM);
     }
     st.crowd.instanceMatrix.needsUpdate = true;
+    st.heads.instanceMatrix.needsUpdate = true;
   }
 
   private viewFor(a: Agent): ViewState {
@@ -310,7 +320,7 @@ export class GameRenderer {
     this.updateParticles(dt);
     this.updateCrowd(dt);
     this.updateCamera(dt, mc);
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
   }
 
   private updateBall(mc: MatchController): void {
@@ -529,7 +539,12 @@ export class GameRenderer {
     for (const v of this.views.values()) v.view.root.visible = false;
     this.batcher.begin();
     this.batcher.end();
-    this.renderer.render(this.scene, this.camera);
+    this.draw();
+  }
+
+  private draw(): void {
+    if (this.post) this.post.render();
+    else this.renderer.render(this.scene, this.camera);
   }
 
   /** Nombre d'appels de rendu de la dernière image (diagnostic). */
@@ -539,6 +554,7 @@ export class GameRenderer {
 
   dispose(): void {
     this.batcher.dispose();
+    this.post?.dispose();
     this.stadium?.dispose();
     this.renderer.dispose();
   }

@@ -14,7 +14,7 @@ Environnement : conteneur Linux sans GPU, Node 22, Chromium 141 (Playwright 1.56
 | Unitaires — monde, carrière de club, coupes, défis | `npm test` | ✅ 18/18 |
 | Unitaires — Ultimate Team, équipes féminines | `npm test` | ✅ 9/9 |
 | Intégration — matchs pilotés, IA, ligue + sauvegarde | `npm test` | ✅ 17/17 (matchs + commandes) |
-| End-to-end Chromium (4 résolutions) | `npm run e2e` | ✅ 6/6 |
+| End-to-end Chromium (4 résolutions + multi-touch) | `npm run e2e` | ✅ 7/7 |
 | Unity (C#, NUnit EditMode) | — | ⬜ **non exécuté** (Unity / .NET indisponibles) |
 | Appareil Android/iOS réel | — | ⬜ **non exécuté** |
 
@@ -73,6 +73,8 @@ d'identifiant) ; achat et vente avec indemnités ; achat refusé sans trésoreri
 1. Écran titre → menu → match rapide → pile ou face → coup d'envoi → sélection d'une passe → HIKE → PASSE → résolution
    de l'action ; **aucune erreur console**.
 2. Pause et reprise sans perte d'état (temps de simulation figé en pause).
+7. Multi-touch réel (émulation tactile Chromium via CDP) : joystick tenu + HIKE, joystick tenu + SPRINT maintenu,
+   relâchement du bouton sans perdre le joystick.
 3. à 6. Menu et HUD de match à 667×375, 800×360, 844×390, 1180×820 : tous les boutons sont entièrement dans l'écran et
    mesurent au moins 40 px (cible tactile).
 

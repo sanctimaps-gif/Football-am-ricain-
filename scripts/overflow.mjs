@@ -34,7 +34,7 @@ for (const [w, h] of sizes) {
   await tap('[data-action=menu]');
   await tap('[data-action=quick]'); await check('setup');
   await tap('[data-action=start]');
-  await page.waitForFunction(() => window.__gd.current.mc?.phase === 'CoinToss');
+  await page.waitForFunction(() => window.__gd.current.mc?.phase === 'CoinToss', null, { timeout: 90000, polling: 500 });
   await check('coin');
   await tap('[data-action=heads]'); await page.waitForTimeout(300); await tap('[data-action=receive]');
   for (let i = 0; i < 300; i++) {
@@ -45,8 +45,8 @@ for (const [w, h] of sizes) {
   }
   await check('playcall');
   const off = await page.evaluate(() => { const m = window.__gd.current.mc; return m.state.possession === m.userSide; });
-  if (off) { await tap('[data-action="off:quickSlants"]'); await page.waitForFunction(() => window.__gd.current.mc?.phase === 'PreSnap'); await check('presnap-off'); await tap('.ctl-btn[data-id=snap]'); await page.waitForTimeout(1500); await check('qb'); }
-  else { await tap('[data-action="def:43cover2"]'); await page.waitForFunction(() => window.__gd.current.mc?.phase === 'PreSnap'); await check('presnap-def'); await page.waitForFunction(() => window.__gd.current.mc?.phase === 'LivePlay', null, { timeout: 60000 }); await check('defense'); }
+  if (off) { await tap('[data-action="off:quickSlants"]'); await page.waitForFunction(() => window.__gd.current.mc?.phase === 'PreSnap', null, { timeout: 90000, polling: 500 }); await check('presnap-off'); await tap('.ctl-btn[data-id=snap]'); await page.waitForTimeout(1500); await check('qb'); }
+  else { await tap('[data-action="def:43cover2"]'); await page.waitForFunction(() => window.__gd.current.mc?.phase === 'PreSnap', null, { timeout: 90000, polling: 500 }); await check('presnap-def'); await page.waitForFunction(() => window.__gd.current.mc?.phase === 'LivePlay', null, { timeout: 90000, polling: 500 }); await check('defense'); }
   await tap('[data-action=pause]'); await check('pause');
   await page.close();
 }

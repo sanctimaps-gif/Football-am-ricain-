@@ -42,7 +42,10 @@ export class TouchControls {
   private stickBase: HTMLElement;
   private stickKnob: HTMLElement;
   private buttonsEl: HTMLElement;
-  private stickId: number | null = null;
+  /** Doigt (ou pointeur souris) qui tient le joystick : « t<n> » pour un toucher, « p<n> » pour un pointeur. */
+  private stickId: string | null = null;
+  /** Doigts posés sur les boutons : identifiant du toucher → bouton. */
+  private touchButtons = new Map<number, { id: ButtonId; el: HTMLElement; hold: boolean }>();
   private stickOrigin = { x: 0, y: 0 };
   private stick = { x: 0, y: 0 };
   private held = new Set<ButtonId>();
@@ -68,20 +71,67 @@ export class TouchControls {
     this.stickKnob = this.el.querySelector('.stick-knob')!;
     this.buttonsEl = this.el.querySelector('.buttons')!;
     const zone = this.el.querySelector('.stick-zone') as HTMLElement;
-    zone.addEventListener('pointerdown', (e) => this.stickDown(e));
+    // Multi-touch : sur téléphone, les événements tactiles (touchstart/touchmove/touchend) suivent chaque doigt
+    // indépendamment, ce qui permet de tenir le joystick et d'appuyer sur un bouton en même temps. Les événements
+    // « pointer » restent utilisés pour la souris (et les tests).
+    zone.addEventListener('pointerdown', (e) => {
+      if (e.pointerType !== 'touch') this.stickDown(`p${e.pointerId}`, e.clientX, e.clientY);
+    });
+    zone.addEventListener('touchstart', (e) => {
+      e.preventDefault();
+      for (const t of Array.from(e.changedTouches)) {
+        if (this.stickId === null) this.stickDown(`t${t.identifier}`, t.clientX, t.clientY);
+      }
+    }, { passive: false });
+    const onTouchMove = (e: TouchEvent) => {
+      let ours = false;
+      for (const t of Array.from(e.changedTouches)) {
+        if (`t${t.identifier}` === this.stickId) {
+          this.stickMove(`t${t.identifier}`, t.clientX, t.clientY);
+          ours = true;
+        }
+        if (this.touchButtons.has(t.identifier)) ours = true;
+      }
+      if (ours && e.cancelable) e.preventDefault();
+    };
+    const onTouchEnd = (e: TouchEvent) => {
+      for (const t of Array.from(e.changedTouches)) {
+        this.stickUp(`t${t.identifier}`, t.clientX, t.clientY);
+        const b = this.touchButtons.get(t.identifier);
+        if (b) {
+          this.touchButtons.delete(t.identifier);
+          this.releaseButton(b.id, b.el, b.hold);
+        }
+      }
+    };
     const listeners: [string, EventListener][] = [
-      ['pointermove', (e) => this.stickMove(e as PointerEvent)],
-      ['pointerup', (e) => this.stickUp(e as PointerEvent)],
-      ['pointercancel', (e) => this.stickUp(e as PointerEvent)],
+      ['pointermove', (e) => {
+        const p = e as PointerEvent;
+        if (p.pointerType !== 'touch') this.stickMove(`p${p.pointerId}`, p.clientX, p.clientY);
+      }],
+      ['pointerup', (e) => {
+        const p = e as PointerEvent;
+        if (p.pointerType !== 'touch') this.stickUp(`p${p.pointerId}`, p.clientX, p.clientY);
+      }],
+      ['pointercancel', (e) => {
+        const p = e as PointerEvent;
+        if (p.pointerType !== 'touch') this.stickUp(`p${p.pointerId}`, p.clientX, p.clientY);
+      }],
+      ['touchmove', onTouchMove as EventListener],
+      ['touchend', onTouchEnd as EventListener],
+      ['touchcancel', onTouchEnd as EventListener],
+      // iOS : empêche le geste de zoom à deux doigts d'annuler les commandes
+      ['gesturestart', (e) => e.preventDefault()],
       ['keydown', (e) => this.key(e as KeyboardEvent, true)],
       ['keyup', (e) => this.key(e as KeyboardEvent, false)],
       ['blur', () => {
         this.keys.clear();
         this.held.clear();
+        this.touchButtons.clear();
         this.resetStick();
       }],
     ];
-    for (const [ev, fn] of listeners) window.addEventListener(ev, fn);
+    for (const [ev, fn] of listeners) window.addEventListener(ev, fn, { passive: false });
     this.dispose = () => {
       for (const [ev, fn] of listeners) window.removeEventListener(ev, fn);
     };
@@ -94,6 +144,7 @@ export class TouchControls {
     this.el.style.display = v ? '' : 'none';
     if (!v) {
       this.held.clear();
+      this.touchButtons.clear();
       this.resetStick();
     }
   }
@@ -121,7 +172,28 @@ export class TouchControls {
       const span = document.createElement('span');
       span.textContent = s.label;
       b.appendChild(span);
+      // toucher (multi-touch) : chaque doigt est suivi par son identifiant
+      b.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        for (const t of Array.from(e.changedTouches)) this.touchButtons.set(t.identifier, { id: s.id, el: b, hold: !!s.hold });
+        b.classList.add('pressed');
+        this.press(s.id, !!s.hold);
+      }, { passive: false });
+      // fin du toucher écoutée sur le bouton lui-même : si le bouton est retiré du DOM pendant l'appui,
+      // l'événement n'atteint plus window (il reste ciblé sur l'élément détaché)
+      const touchUp = (e: TouchEvent) => {
+        for (const t of Array.from(e.changedTouches)) {
+          const held = this.touchButtons.get(t.identifier);
+          if (!held) continue;
+          this.touchButtons.delete(t.identifier);
+          this.releaseButton(held.id, held.el, held.hold);
+        }
+      };
+      b.addEventListener('touchend', touchUp);
+      b.addEventListener('touchcancel', touchUp);
       b.addEventListener('pointerdown', (e) => {
+        if (e.pointerType === 'touch') return;
         e.preventDefault();
         e.stopPropagation();
         b.classList.add('pressed');
@@ -132,9 +204,9 @@ export class TouchControls {
           /* pointeur déjà relâché */
         }
       });
-      const release = () => {
-        b.classList.remove('pressed');
-        if (s.hold) this.held.delete(s.id);
+      const release = (e: PointerEvent) => {
+        if (e.pointerType === 'touch') return;
+        this.releaseButton(s.id, b, !!s.hold);
       };
       b.addEventListener('pointerup', release);
       b.addEventListener('pointercancel', release);
@@ -146,6 +218,12 @@ export class TouchControls {
     });
     // les boutons maintenus disparus sont relâchés
     for (const id of [...this.held]) if (!specs.some((s) => s.id === id)) this.held.delete(id);
+  }
+
+  private releaseButton(id: ButtonId, el: HTMLElement, hold: boolean): void {
+    el.classList.remove('pressed');
+    // un bouton maintenu reste actif tant qu'un autre doigt le tient encore
+    if (hold && ![...this.touchButtons.values()].some((b) => b.id === id)) this.held.delete(id);
   }
 
   /** Grise un bouton (temps de récupération) sans le recréer. */
@@ -177,24 +255,24 @@ export class TouchControls {
     this.pulses.add('pass');
   }
 
-  private stickDown(e: PointerEvent): void {
+  private stickDown(id: string, cx: number, cy: number): void {
     if (this.stickId !== null) return;
-    this.stickId = e.pointerId;
-    this.stickOrigin = { x: e.clientX, y: e.clientY };
+    this.stickId = id;
+    this.stickOrigin = { x: cx, y: cy };
     this.stickT0 = performance.now();
     const zoneRect = (this.stickBase.parentElement as HTMLElement).getBoundingClientRect();
-    this.stickBase.style.left = `${e.clientX - zoneRect.left}px`;
-    this.stickBase.style.top = `${e.clientY - zoneRect.top}px`;
+    this.stickBase.style.left = `${cx - zoneRect.left}px`;
+    this.stickBase.style.top = `${cy - zoneRect.top}px`;
     this.stickBase.classList.add('active');
     this.stick = { x: 0, y: 0 };
     this.updateKnob();
   }
 
-  private stickMove(e: PointerEvent): void {
-    if (e.pointerId !== this.stickId) return;
+  private stickMove(id: string, cx: number, cy: number): void {
+    if (id !== this.stickId) return;
     const max = 52;
-    let dx = e.clientX - this.stickOrigin.x;
-    let dy = e.clientY - this.stickOrigin.y;
+    let dx = cx - this.stickOrigin.x;
+    let dy = cy - this.stickOrigin.y;
     const d = Math.hypot(dx, dy);
     if (d > max) {
       dx = (dx / d) * max;
@@ -204,11 +282,11 @@ export class TouchControls {
     this.updateKnob();
   }
 
-  private stickUp(e: PointerEvent): void {
-    if (e.pointerId !== this.stickId) return;
+  private stickUp(id: string, cx: number, cy: number): void {
+    if (id !== this.stickId) return;
     if (this.simple) {
-      const dx = e.clientX - this.stickOrigin.x;
-      const dy = e.clientY - this.stickOrigin.y;
+      const dx = cx - this.stickOrigin.x;
+      const dy = cy - this.stickOrigin.y;
       if (performance.now() - this.stickT0 < 320 && Math.hypot(dx, dy) > 36) {
         const d = Math.hypot(dx, dy);
         this.swipe = { x: dx / d, y: -dy / d };
