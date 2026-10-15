@@ -11,8 +11,9 @@ Environnement : conteneur Linux sans GPU, Node 22, Chromium 141 (Playwright 1.56
 | Build de production | `npm run build` | ✅ (≈760 ko JS, 210 ko gzip) |
 | Unitaires — règles | `npm test` | ✅ 58/58 |
 | Unitaires — ligue, marché, carrière, sauvegardes | `npm test` | ✅ 13/13 |
-| Unitaires — monde, carrière de club, coupes, défis | `npm test` | ✅ 15/15 |
-| Intégration — matchs pilotés, IA, ligue + sauvegarde | `npm test` | ✅ 14/14 (matchs + commandes) |
+| Unitaires — monde, carrière de club, coupes, défis | `npm test` | ✅ 18/18 |
+| Unitaires — Ultimate Team, équipes féminines | `npm test` | ✅ 9/9 |
+| Intégration — matchs pilotés, IA, ligue + sauvegarde | `npm test` | ✅ 17/17 (matchs + commandes) |
 | End-to-end Chromium (4 résolutions) | `npm run e2e` | ✅ 6/6 |
 | Unity (C#, NUnit EditMode) | — | ⬜ **non exécuté** (Unity / .NET indisponibles) |
 | Appareil Android/iOS réel | — | ⬜ **non exécuté** |
@@ -38,7 +39,15 @@ débitée) ; échanges déséquilibrés refusés / équilibrés acceptés ; inde
 la trésorerie ; carrière de joueur (draft, entraînement une fois par semaine) ; sauvegarde/rechargement d'une ligue ;
 données corrompues → valeurs par défaut ; version de sauvegarde future ignorée.
 
-**Monde et modes (15, `tests/unit/world.test.ts`)** : identifiants et noms uniques ; effectifs complets et maillots
+**Monde et modes (18, `tests/unit/world.test.ts`)** : en plus de la liste ci-dessous, playoffs de division (top 4,
+seul le vainqueur monte, un 1er battu en playoffs reste), club créé avec identité et maillot, tournoi intersaison
+(adversaires d'autres ligues, primes, remise à zéro).
+
+**Ultimate Team (9, `tests/unit/ut.test.ts`)** : effectif de départ complet et jouable, raretés et notes visées,
+packs (débit, refus sans monnaie), cartes doubles et synergie, traits, EVO, vente, playbook à budget, défis du jour,
+Journeys, Field Pass, Arena, événement du mois, sauvegarde séparée ; sélections féminines.
+
+**Liste initiale** : identifiants et noms uniques ; effectifs complets et maillots
 distincts pour les 8 groupes d'équipes ; clubs générés uniques ; tableau à élimination directe (1-8, 4-5, 2-7, 3-6) et
 tours suivants ; les 10 coupes jouées jusqu'au vainqueur ; phase de groupes → quarts ; petite équipe qualifiée ; carrière
 de club (départ en D3, 3 joueurs gardés, 10 clubs par division, promotion du premier, 3 saisons enchaînées sans doublon
@@ -47,6 +56,7 @@ d'identifiant) ; achat et vente avec indemnités ; achat refusé sans trésoreri
 
 ## Tests d'intégration (`tests/integration`)
 
+* Commandes simplifiées (l'IA déplace le défenseur sans joystick), playbook restreint, fin anticipée (Arena).
 * Chaque commande tactile a un effet (8 tests), dont le chrono de jeu de 40 s qui déclenche un retard de jeu (−5).
 * Match complet piloté comme un humain (choix d'actions, snap, passes, courses, punts, FG, conversions, jauge de kick) :
   le match se termine, le score reconstruit depuis le journal correspond au score final, chaque TD est suivi d'une

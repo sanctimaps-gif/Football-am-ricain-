@@ -75,6 +75,20 @@ export class SaveManager {
     this.store.set(PREFIX + key, JSON.stringify(env));
   }
 
+  /** Sauvegarde Ultimate Team (une seule, indépendante des emplacements de ligue). */
+  loadUT<T>(validate: (d: unknown) => d is T): T | null {
+    const d = this.read<unknown>('ut');
+    return d && validate(d) ? d : null;
+  }
+
+  saveUT<T>(data: T): void {
+    this.write('ut', data);
+  }
+
+  deleteUT(): void {
+    this.store.remove(PREFIX + 'ut');
+  }
+
   loadSettings(): Settings {
     return sanitizeSettings(this.read<Settings>('settings') ?? DEFAULT_SETTINGS);
   }

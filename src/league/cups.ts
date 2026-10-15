@@ -1,7 +1,7 @@
 import { Rng } from '../core/rng';
 import { teamFromTemplate } from '../data/generator';
 import type { TeamTemplate } from '../data/teams';
-import { ALL_CLUBS, LEAGUES, leagueDef, NATIONS } from '../data/world';
+import { ALL_CLUBS, LEAGUES, leagueDef, NATIONS, NATIONS_W } from '../data/world';
 import { pow2Floor, seededKnockout } from './knockout';
 import { createLeague } from './league';
 import { roundRobin, type ScheduledGame } from './schedule';
@@ -38,6 +38,7 @@ export const CUPS: CupDef[] = [
   { id: 'africa', name: 'Coupe d’Afrique des clubs', icon: '🌍', desc: 'Les meilleurs clubs africains en élimination directe.', kind: 'clubs', size: 8, groups: 0, pool: () => [...leagueDef('afr').teams, ...byIds(AFRICAN_FRA)] },
   { id: 'asia', name: 'Coupe d’Asie-Pacifique', icon: '🌏', desc: 'Les clubs d’Asie et d’Océanie en élimination directe.', kind: 'clubs', size: 8, groups: 0, pool: () => leagueDef('asi').teams },
   { id: 'nations', name: 'Coupe des Nations', icon: '🌍', desc: '16 sélections nationales : groupes puis phase finale.', kind: 'nations', size: 16, groups: 4, pool: () => NATIONS },
+  { id: 'worldCupW', name: 'Coupe du monde féminine', icon: '♀️', desc: '8 sélections féminines : 2 groupes, demies, finale.', kind: 'nations', size: 8, groups: 2, pool: () => NATIONS_W },
   { id: 'nationsEu', name: 'Ligue des Nations européenne', icon: '🇪🇺', desc: '8 sélections européennes : 2 groupes, demies, finale.', kind: 'nations', size: 8, groups: 2, pool: () => nations(['GER', 'AUT', 'GBR', 'FRA', 'FIN', 'ITA', 'SWE', 'ESP', 'NED']) },
   { id: 'goldBowl', name: 'Gold Bowl des Amériques et du Pacifique', icon: '🥇', desc: '8 sélections : 2 groupes, demies, finale.', kind: 'nations', size: 8, groups: 2, pool: () => nations(['USA', 'CAN', 'MEX', 'BRA', 'JPN', 'AUS', 'KOR', 'GBR']) },
 ];
@@ -48,7 +49,7 @@ export const cupDef = (id: string): CupDef => CUPS.find((c) => c.id === id) ?? C
 export function cupEntrants(def: CupDef, userTeamId: string, leagueId?: string): TeamTemplate[] {
   const pool = def.national ? leagueDef(leagueId ?? 'usa').teams : def.pool();
   const size = def.national ? Math.min(16, pow2Floor(pool.length)) : def.size;
-  const user = pool.find((t) => t.id === userTeamId) ?? [...ALL_CLUBS, ...NATIONS].find((t) => t.id === userTeamId);
+  const user = pool.find((t) => t.id === userTeamId) ?? [...ALL_CLUBS, ...NATIONS, ...NATIONS_W].find((t) => t.id === userTeamId);
   if (!user) throw new Error(`Équipe inconnue ${userTeamId}`);
   // Coupe des Champions : quotas par ligue pour représenter toutes les régions
   let ranked: TeamTemplate[];

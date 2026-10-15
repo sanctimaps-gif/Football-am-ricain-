@@ -54,6 +54,10 @@ export class TouchControls {
   sensitivity = 1;
   onPress: ((id: ButtonId) => void) | null = null;
   private passTargetPulse = -1;
+  /** Commandes simplifiées : glisser le doigt déclenche une feinte, l'IA déplace le joueur contrôlé. */
+  simple = false;
+  private stickT0 = 0;
+  private swipe: { x: number; y: number } | null = null;
 
   constructor(parent: HTMLElement) {
     this.el = document.createElement('div');
@@ -177,6 +181,7 @@ export class TouchControls {
     if (this.stickId !== null) return;
     this.stickId = e.pointerId;
     this.stickOrigin = { x: e.clientX, y: e.clientY };
+    this.stickT0 = performance.now();
     const zoneRect = (this.stickBase.parentElement as HTMLElement).getBoundingClientRect();
     this.stickBase.style.left = `${e.clientX - zoneRect.left}px`;
     this.stickBase.style.top = `${e.clientY - zoneRect.top}px`;
@@ -201,6 +206,15 @@ export class TouchControls {
 
   private stickUp(e: PointerEvent): void {
     if (e.pointerId !== this.stickId) return;
+    if (this.simple) {
+      const dx = e.clientX - this.stickOrigin.x;
+      const dy = e.clientY - this.stickOrigin.y;
+      if (performance.now() - this.stickT0 < 320 && Math.hypot(dx, dy) > 36) {
+        const d = Math.hypot(dx, dy);
+        this.swipe = { x: dx / d, y: -dy / d };
+        this.pulses.add('juke');
+      }
+    }
     this.resetStick();
   }
 
@@ -246,8 +260,15 @@ export class TouchControls {
     sx *= this.sensitivity;
     sy *= this.sensitivity;
     void invertForTeam;
+    if (this.swipe) {
+      // geste de feinte : direction du glissement pour cette image seulement
+      sx = this.swipe.x;
+      sy = this.swipe.y;
+      this.swipe = null;
+    }
     inp.moveX = axes.fx * sy + axes.rx * sx;
     inp.moveY = axes.fy * sy + axes.ry * sx;
+    inp.autoMove = this.simple;
     inp.sprint = this.held.has('sprint') || this.keys.has('shift');
     inp.contain = this.held.has('contain') || this.keys.has('c');
     inp.protect = this.held.has('protect');

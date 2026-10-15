@@ -170,12 +170,16 @@ const NATION_ROWS: Row[] = [
 /** Sélections nationales (Coupe des Nations, Gold Bowl…). */
 export const NATIONS: TeamTemplate[] = build('nt', NATION_ROWS).map((t) => ({ ...t, stadium: `Stade national (${t.city})` }));
 
+/** Sélections nationales féminines (joueuses générées, effectifs et modèles 3D féminins). */
+export const NATIONS_W: TeamTemplate[] = build('ntw', NATION_ROWS.filter((r) => ['USA', 'CAN', 'MEX', 'GER', 'FRA', 'GBR', 'JPN', 'BRA', 'AUS', 'FIN', 'SWE', 'AUT'].includes(r[0])))
+  .map((t) => ({ ...t, name: '(F)', stadium: `Stade national (${t.city})`, women: true, tier: 1 + (t.tier - 1) * 0.8 }));
+
 export const ALL_CLUBS: TeamTemplate[] = LEAGUES.flatMap((l) => l.teams);
 
 export const leagueDef = (id: string): LeagueDef => LEAGUES.find((l) => l.id === id) ?? LEAGUES[0];
 
 export function templateById(id: string): TeamTemplate | undefined {
-  return ALL_CLUBS.find((t) => t.id === id) ?? NATIONS.find((t) => t.id === id);
+  return ALL_CLUBS.find((t) => t.id === id) ?? NATIONS.find((t) => t.id === id) ?? NATIONS_W.find((t) => t.id === id);
 }
 
 /** Ligue d'origine d'un club. */
@@ -243,5 +247,6 @@ export function generateClubTemplate(leagueId: string, seed: number, tier: numbe
 /** Groupe (ligue ou « nations ») d'une équipe. */
 export function groupOfTeam(id: string): string {
   if (NATIONS.some((t) => t.id === id)) return 'nations';
+  if (NATIONS_W.some((t) => t.id === id)) return 'nationsF';
   return leagueOfTeam(id)?.id ?? 'fra';
 }

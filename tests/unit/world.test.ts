@@ -7,6 +7,7 @@ import { bracketOrder, nextKnockoutRound, seededKnockout } from '../../src/leagu
 import { advanceWeek, simulateWeek, standings, userTeam, weekComplete } from '../../src/league/league';
 import { endSeason, runAiDraft, startNewSeason } from '../../src/league/offseason';
 import { applyPromotions, createClubCareer, originalSquad } from '../../src/league/pyramid';
+import { interseasonUserGame, simulateInterseason } from '../../src/league/interseason';
 import { buyPlayer, saleOffer, searchPlayers, sellPlayer } from '../../src/league/transfers';
 import { DIVISION_SIZE, type League } from '../../src/league/types';
 import { DEFAULT_RULES } from '../../src/rules/config';
@@ -36,7 +37,7 @@ describe('monde : ligues, clubs et sélections', () => {
   });
 
   it('chaque ligue génère des effectifs complets et deux maillots distincts', () => {
-    for (const g of [...LEAGUES.map((l) => l.id), 'nations']) {
+    for (const g of [...LEAGUES.map((l) => l.id), 'nations', 'nationsF']) {
       for (const t of createTeamsFor(g, 3)) {
         expect(t.roster.length).toBeGreaterThanOrEqual(45);
         expect(t.uniform.homeJersey).not.toBe(t.uniform.awayJersey);
@@ -116,22 +117,71 @@ describe('carrière de club', () => {
     for (const lvl of [1, 2, 3] as const) expect(l.pyramid!.members[lvl]).toHaveLength(DIVISION_SIZE);
   });
 
-  it('les 4 premiers montent : le club passe en deuxième division', () => {
+  it('playoffs de division : le top 4 joue, seul le vainqueur monte', () => {
     const l = fresh();
+    let guard = 0;
+    while (l.phase === 'regular' && guard++ < 30) { simulateWeek(l, true); advanceWeek(l); }
+    expect(l.phase).toBe('playoffs');
+    expect(l.playoffs).toHaveLength(2);
+    expect(l.playoffs[0].label).toBe('Demi-finale');
+    const top4 = standings(l).slice(0, 4).map((r) => r.teamId);
+    expect(new Set(l.playoffs.flatMap((g) => [g.home, g.away]))).toEqual(new Set(top4));
     playSeason(l);
     expect(l.phase).toBe('offseason');
-    // on place le club en tête du classement final
-    const st = standings(l);
-    const myGames = l.schedule.flat().filter((g) => g.home === l.userTeamId || g.away === l.userTeamId);
-    for (const g of myGames) g.score = g.home === l.userTeamId ? [40, 0] : [0, 40];
-    expect(standings(l)[0].teamId).toBe(l.userTeamId);
-    void st;
+    const champ = l.champion!;
+    expect(top4).toContain(champ);
+    const last = standings(l)[DIVISION_SIZE - 1].teamId;
+    // on force le club de l'utilisateur vainqueur des playoffs
+    l.champion = l.userTeamId;
     const msgs = applyPromotions(l);
     expect(msgs[0]).toContain('PROMOTION');
     expect(l.pyramid!.level).toBe(2);
+    expect(l.trophies).toContain(`Champion de Troisième division ${l.season}`);
     expect(l.teams).toHaveLength(DIVISION_SIZE);
-    expect(l.teams.some((t) => t.id === l.userTeamId)).toBe(true);
     for (const lvl of [1, 2, 3] as const) expect(l.pyramid!.members[lvl]).toHaveLength(DIVISION_SIZE);
+    // en D3, personne ne descend ; un seul club monte
+    expect(l.pyramid!.members[3]).toContain(last === l.userTeamId ? l.pyramid!.members[3][0] : last);
+  });
+
+  it('seul le vainqueur monte : un 1er de saison régulière battu en playoffs reste', () => {
+    const l = fresh();
+    playSeason(l);
+    const other = l.playoffs.find((g) => g.id === 'final')!;
+    l.champion = other.home === l.userTeamId ? other.away : other.home;
+    const msgs = applyPromotions(l);
+    expect(l.pyramid!.level).toBe(3);
+    expect(msgs[0]).toContain('reste');
+  });
+
+  it('club créé (style Rugby Nations) : pays d’origine, identité et maillot, effectif généré', () => {
+    const tpl = { id: 'x', city: 'Springfield', name: 'Storm', abbr: 'SPR', conference: 0 as const, primary: '#0B3D91', secondary: '#F5C400', accent: '#FFFFFF', logoShape: 'shield' as const, glyph: 'S', stadium: 'Stade', capacity: 15000, tier: 0.8 };
+    const l = createClubCareer({ leagueId: 'eur', custom: { template: tpl, uniform: { socks: '#C8102E', cleats: '#FFFFFF', collar: '#111111' } }, keepIds: [], seed: 4 });
+    const me = userTeam(l);
+    expect(me.city).toBe('Springfield');
+    expect(me.custom).toBe(true);
+    expect(me.uniform.socks).toBe('#C8102E');
+    expect(me.roster.some((p) => p.id.endsWith('-keep'))).toBe(false);
+    expect(l.pyramid!.leagueId).toBe('eur');
+    expect(l.pyramid!.level).toBe(3);
+  });
+
+  it('tournoi intersaison contre des clubs d’autres régions, avec primes', () => {
+    const l = fresh();
+    playSeason(l);
+    endSeason(l);
+    const c = l.interseason!;
+    expect(c.opponents).toHaveLength(3);
+    expect(c.opponents.every((t) => !t.id.startsWith('us-'))).toBe(true);
+    expect(interseasonUserGame(l)).not.toBeNull();
+    const cash = l.finances[l.userTeamId].cash;
+    simulateInterseason(l, true);
+    expect(c.done).toBe(true);
+    expect(c.games.find((g) => g.id === 'final')?.played).toBe(true);
+    const inFinal = [c.games[2].home, c.games[2].away].includes(l.userTeamId);
+    if (inFinal) expect(l.finances[l.userTeamId].cash).toBeGreaterThan(cash);
+    runAiDraft(l, false);
+    startNewSeason(l);
+    expect(l.interseason).toBeNull();
   });
 
   it('plusieurs saisons enchaînées sans erreur (montées, relégations, draft)', () => {

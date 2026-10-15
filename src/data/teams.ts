@@ -13,6 +13,8 @@ export interface TeamTemplate {
   glyph: string;
   stadium: string;
   capacity: number;
+  /** Équipe féminine. */
+  women?: boolean;
   /** Niveau général de l'équipe (0.85 faible → 1.1 forte). */
   tier: number;
 }

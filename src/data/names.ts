@@ -21,3 +21,9 @@ export const LAST_NAMES = [
   'Foster', 'Hughes', 'Jenkins', 'Ward', 'Turner', 'Barnes', 'Fisher', 'Walsh', 'Doyle', 'Keller',
   'Weber', 'Baumann', 'Rossi', 'Ferrari', 'Moretti', 'Benali', 'Haddad', 'Mansour', 'Tanaka', 'Sato',
 ];
+
+export const FIRST_NAMES_F = [
+  'Adèle', 'Aïcha', 'Alice', 'Amina', 'Anna', 'Awa', 'Camille', 'Chloé', 'Clara', 'Elena', 'Élise', 'Emma', 'Fatou',
+  'Grace', 'Hana', 'Inès', 'Jade', 'Julia', 'Kenza', 'Laura', 'Léa', 'Lina', 'Louise', 'Maya', 'Mia', 'Naomi', 'Nina',
+  'Noémie', 'Olivia', 'Rose', 'Sarah', 'Sofia', 'Yasmine', 'Zoé', 'Ava', 'Megan', 'Kayla', 'Jasmine', 'Mei', 'Yuki',
+];

@@ -43,6 +43,10 @@ export interface MatchOptions {
   playClock?: boolean;
   /** Mode sans interface : pas de temps morts d'affichage. */
   headless?: boolean;
+  /** Livre de jeu restreint de l'utilisateur (Ultimate Team) ; les actions spéciales restent disponibles. */
+  playbook?: { off: string[]; def: string[] };
+  /** Condition de fin anticipée (Arena : fin du drive), vérifiée avant chaque action. */
+  endCheck?: (s: GameState) => boolean;
 }
 
 const BANNER_TIME = { review: 1.7, reviewScore: 3.0, quarter: 2.2, dead: 1.35 };
@@ -82,7 +86,7 @@ export class MatchController {
   private accumulator = 0;
   private pendingBanner: MatchPhase | null = null;
 
-  constructor(home: Team, away: Team, opts: MatchOptions) {
+  constructor(home: Team, away: Team, private readonly opts: MatchOptions) {
     this.teams = [home, away];
     this.rules = opts.rules ?? DEFAULT_RULES;
     this.difficulty = DIFFICULTIES[opts.difficulty ?? 'normal'];
@@ -208,6 +212,10 @@ export class MatchController {
   /** Prépare l'action suivante selon l'état des règles. */
   private prepareNext(fromBanner = false): void {
     const s = this.state;
+    if (this.opts.endCheck && !s.finished && s.nextKind !== 'conversion' && this.opts.endCheck(s)) {
+      s.finished = true;
+      s.winner = s.score[0] === s.score[1] ? null : s.score[0] > s.score[1] ? 0 : 1;
+    }
     if (this.practiceHook) {
       this.practiceHook(s);
       this.pendingBanner = null;
@@ -471,7 +479,14 @@ export class MatchController {
       if (this.conversionType === 'two') return OFFENSIVE_PLAYS.filter((p) => p.category !== 'special');
       return OFFENSIVE_PLAYS.filter((p) => p.subtype === 'fieldGoal' || p.category !== 'special');
     }
-    return OFFENSIVE_PLAYS.filter((p) => p.subtype !== 'kneel' || s.down >= 1);
+    const book = this.opts.playbook?.off;
+    return OFFENSIVE_PLAYS.filter((p) => (p.subtype !== 'kneel' || s.down >= 1) && (!book || p.category === 'special' || book.includes(p.id)));
+  }
+
+  defensePlaysForUser(): DefensivePlay[] {
+    const book = this.opts.playbook?.def;
+    const list = DEFENSIVE_PLAYS.filter((p) => !book || book.includes(p.id));
+    return list.length ? list : DEFENSIVE_PLAYS;
   }
 
   playerOfTheGame(): { player: Player; side: Side; impact: number } | null {

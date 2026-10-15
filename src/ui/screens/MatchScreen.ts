@@ -2,7 +2,7 @@ import type { GameState } from '../../rules/types';
 import { isLight } from '../../data/generator';
 import { audio } from '../../audio/AudioEngine';
 import type { GamePlan } from '../../ai/playcaller';
-import { DEFENSIVE_PLAYS, type OffensivePlay } from '../../data/playbook';
+import { type OffensivePlay } from '../../data/playbook';
 import type { Team } from '../../data/types';
 import { fieldPosLabel, formatClock, ordinalDown, quarterLabel, t } from '../../i18n';
 import { TouchControls, type ButtonSpec } from '../../input/TouchControls';
@@ -29,6 +29,10 @@ export interface MatchConfig {
   context: 'quick' | 'league' | 'spectator' | 'challenge';
   /** Situation de départ imposée (défis) : appliquée une fois, sans pile ou face. */
   setup?: (s: GameState) => void;
+  /** Livre de jeu restreint (Ultimate Team). */
+  playbook?: { off: string[]; def: string[] };
+  /** Fin anticipée (Arena). */
+  endCheck?: (s: GameState) => boolean;
   /** Appelé quand l'utilisateur quitte l'écran de résultat. */
   onExit: (mc: MatchController | null, completed: boolean) => void;
   title?: string;
@@ -73,6 +77,8 @@ export class MatchScreen implements Screen {
       playClock: app.settings.playClock && cfg.context !== 'spectator',
       lockedPlayerId: cfg.lockedPlayerId ?? null,
       plans: cfg.plans,
+      playbook: cfg.playbook,
+      endCheck: cfg.endCheck,
     });
     app.renderer.setupMatch(cfg.home, cfg.away);
     this.el = el('div', 'screen transparent');
@@ -84,6 +90,7 @@ export class MatchScreen implements Screen {
     this.kickMeter.style.display = 'none';
     this.controls = new TouchControls(this.el);
     this.controls.sensitivity = app.settings.sensitivity;
+    this.controls.simple = app.settings.simpleControls;
     if (app.settings.leftHanded) this.controls.el.classList.add('left');
     this.el.append(this.hud, this.bubbles, this.kickMeter, this.overlay);
     this.buildHud();
@@ -409,10 +416,24 @@ export class MatchScreen implements Screen {
         }
       }
     }
-    this.controls.setButtons(specs);
+    this.controls.setButtons(this.app.settings.simpleControls ? this.simplify(specs) : specs);
     const ua = sim.userAgent >= 0 ? sim.agents[sim.userAgent] : null;
     this.controls.setCooling('juke', !!ua && ua.jukeCooldown > 0);
     this.controls.setCooling('tackle', !!ua && (ua.diveTimer > 0 || ua.down));
+  }
+
+  /** Commandes simplifiées : une seule action contextuelle (les déplacements sont assistés par l'IA). */
+  private simplify(specs: ButtonSpec[]): ButtonSpec[] {
+    const ids = specs.map((s) => s.id);
+    const pick = (id: ButtonSpec['id']) => specs.filter((s) => s.id === id);
+    if (ids.includes('kick')) return pick('kick');
+    if (ids.includes('snap')) return pick('snap');
+    if (ids.includes('pass')) return pick('pass');
+    if (ids.includes('fairCatch')) return pick('fairCatch');
+    if (ids.includes('tackle')) return pick('tackle');
+    if (ids.includes('juke')) return pick('juke');
+    if (ids.includes('jump')) return pick('jump');
+    return [];
   }
 
   private updateBubbles(): void {
@@ -537,7 +558,7 @@ export class MatchScreen implements Screen {
       cards = list.map((p) => this.offCard(p)).join('');
     } else {
       tabs = `<span class="chip on">${t('cat.defense')}</span>`;
-      cards = DEFENSIVE_PLAYS.map((p) => `<button class="playcard" data-action="def:${p.id}"><div class="pn">${esc(p.name)}</div><div class="pf">${p.tags.join(' · ')}</div>${defenseDiagram(p)}<div class="pd">${esc(p.description)}</div></button>`).join('');
+      cards = mc.defensePlaysForUser().map((p) => `<button class="playcard" data-action="def:${p.id}"><div class="pn">${esc(p.name)}</div><div class="pf">${p.tags.join(' · ')}</div>${defenseDiagram(p)}<div class="pd">${esc(p.description)}</div></button>`).join('');
     }
     const own = mc.teams[s.possession];
     const opp = mc.teams[other(s.possession)];

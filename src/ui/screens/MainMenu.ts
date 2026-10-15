@@ -17,11 +17,11 @@ export class MainMenu implements Screen {
     this.el.innerHTML = `
       <div class="topbar"><h1>${esc(GAME_NAME)}</h1>
         ${ext.footer.map((x) => `<button class="btn" data-action="ext:${x.id}">${esc(x.label())}</button>`).join('')}
+        <button class="btn" data-action="spectator">📺 ${t('menu.spectator')}</button>
         <button class="btn" data-action="settings">⚙ ${t('menu.settings')}</button></div>
       <div class="menu-grid wide">
         <button class="tile hero" data-action="quick"><span class="ico">🏈</span>${t('menu.play')}<small>Choisissez deux équipes et jouez un match complet en 3D.</small></button>
         ${tiles}
-        <button class="tile" data-action="spectator"><span class="ico">📺</span>${t('menu.spectator')}<small>Regardez deux IA s’affronter.</small></button>
       </div>`;
     onAction(this.el, (act) => {
       audio.ui('confirm');

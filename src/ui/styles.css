@@ -234,3 +234,21 @@ button { touch-action: manipulation; -webkit-touch-callout: none; }
 .card-grid .tile .ico { position: static; font-size: 26px; }
 @media (max-height: 460px) { .menu-grid.wide .tile:not(.hero) small { display: none; } }
 .card-grid .tile .ico { display: block; } .card-grid .tile > .row { margin: 4px 0; } .card-grid .tile small { margin-top: 3px; }
+/* Ultimate Team */
+.ut-res { white-space: nowrap; font-size: 14px; font-weight: 700; color: var(--accent); }
+.ut-cards { display: flex; flex-wrap: wrap; gap: 8px; margin: 4px 0 8px; }
+.ut-card { position: relative; width: 84px; height: 112px; border-radius: 10px; padding: 6px 5px; display: flex; flex-direction: column; align-items: center; gap: 2px; background: linear-gradient(170deg, var(--rc), #141c2c 78%); border: 2px solid var(--rc); color: #fff; overflow: hidden; }
+.ut-card .ovr { font-size: 24px; font-weight: 900; line-height: 1; }
+.ut-card .pos { font-size: 12px; font-weight: 800; background: rgba(0,0,0,.35); border-radius: 6px; padding: 1px 5px; }
+.ut-card .nm { font-size: 12px; font-weight: 700; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; margin-top: auto; }
+.ut-card .rr { font-size: 10px; opacity: .85; }
+.ut-card .tag { position: absolute; top: 3px; right: 3px; font-size: 9px; background: rgba(0,0,0,.55); border-radius: 5px; padding: 1px 4px; }
+.ut-card.empty { --rc: #444; justify-content: center; }
+.jmap { display: flex; flex-wrap: wrap; align-items: center; gap: 2px; margin-bottom: 8px; }
+.jnode { width: 30px; height: 30px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; background: #263248; color: var(--muted); }
+.jnode.done { background: var(--good); color: #062; }
+.jnode.cur { background: var(--accent); color: #1c1200; box-shadow: 0 0 0 3px rgba(255,204,26,.35); }
+.jlink { width: 8px; height: 3px; background: #33415c; display: inline-block; }
+.ut-pass { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
+.pass-cell { border: 1px solid var(--line); border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; opacity: .65; }
+.pass-cell.open { opacity: 1; border-color: var(--accent); }

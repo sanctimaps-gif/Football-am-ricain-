@@ -143,4 +143,44 @@ describe('chaque commande a un effet', () => {
     expect(flagged).toBe(true);
     expect(mc.state.ballOn).toBe(before - 5);
   });
+
+  it('commandes simplifiées : sans joystick, l’IA déplace le défenseur contrôlé', () => {
+    const mc = setup(false);
+    let guard = 0;
+    while (mc.phase === 'PreSnap' && guard++ < 400) step(mc);
+    const sim = mc.sim!;
+    const u = sim.agents[sim.userAgent];
+    const x0 = u.x;
+    const y0 = u.y;
+    step(mc, { autoMove: true }, 60);
+    expect(Math.hypot(u.x - x0, u.y - y0)).toBeGreaterThan(1);
+  });
+
+  it('playbook restreint (Ultimate Team) : seules les actions choisies + actions spéciales', () => {
+    const mc = new MatchController(teams[0], teams[1], { userSide: 0, seed: 3, playbook: { off: ['insideZone', 'quickSlants'], def: ['43cover2'] } });
+    const ids = mc.offensePlaysForUser().map((p) => p.id);
+    expect(ids).toContain('insideZone');
+    expect(ids).toContain('punt');
+    expect(ids).not.toContain('fourVerts');
+    expect(mc.defensePlaysForUser().map((p) => p.id)).toEqual(['43cover2']);
+  });
+
+  it('fin anticipée (Arena) : le match s’arrête quand la condition est remplie', () => {
+    const mc = new MatchController(teams[0], teams[1], { userSide: 0, seed: 5, headless: true, endCheck: (s) => s.playNumber >= 3 });
+    mc.start();
+    mc.resolveCoinToss('heads', 'receive');
+    let guard = 0;
+    while (mc.phase !== 'MatchFinished' && guard++ < 40000) {
+      if (mc.phase === 'PlaySelection') {
+        if (mc.state.possession === 0) mc.selectOffense('insideZone');
+        else mc.selectDefense('43cover2');
+      }
+      if (mc.phase === 'PreSnap' && mc.sim?.offense === 0) mc.snap();
+      const i = emptyInput();
+      if (mc.sim?.awaitingKick) i.kickMeter = 0;
+      mc.update(1 / 30, i);
+    }
+    expect(mc.phase).toBe('MatchFinished');
+    expect(mc.state.playNumber).toBeLessThan(6);
+  });
 });

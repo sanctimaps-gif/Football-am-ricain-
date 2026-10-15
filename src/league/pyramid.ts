@@ -2,7 +2,7 @@ import { Rng, hashString } from '../core/rng';
 import { buildDepthChart, generateRoster, teamFromTemplate } from '../data/generator';
 import { overall } from '../data/ratings';
 import type { TeamTemplate } from '../data/teams';
-import { fullName, type Player, type Team } from '../data/types';
+import { fullName, type Player, type Team, type Uniform } from '../data/types';
 import { ALL_CLUBS, displayName, generateClubTemplate, leagueDef } from '../data/world';
 import { createLeague, defaultFinance, standings } from './league';
 import { DEFAULT_GAMEPLAN } from '../ai/playcaller';
@@ -11,7 +11,10 @@ import { DIVISIONS, DIVISION_SIZE, type DivisionLevel, type League } from './typ
 
 export interface ClubCareerOptions {
   leagueId: string;
-  clubId: string;
+  /** Club existant repris (style FL 26)… */
+  clubId?: string;
+  /** …ou club créé par l'utilisateur (style Rugby Nations : pays d'origine, identité, maillot). */
+  custom?: { template: TeamTemplate; uniform?: Partial<Uniform> };
   /** Joueurs conservés de l'effectif d'origine (3 au maximum). */
   keepIds: string[];
   seed?: number;
@@ -40,13 +43,14 @@ function freshTeam(tpl: TeamTemplate, seed: number, suffix: string): Team {
 
 /**
  * Carrière de club : le club choisi repart de la troisième division avec seulement 3 joueurs de son effectif ;
- * les autres places sont prises par des joueurs générés. Les 4 premiers montent, jusqu'à la première division.
+ * les autres places sont prises par des joueurs générés. Dans chaque division, le vainqueur des playoffs (top 4) monte.
+ * Variante : club créé par l'utilisateur (pays d'origine, identité, maillot), avec un effectif entièrement généré.
  */
 export function createClubCareer(o: ClubCareerOptions): League {
   const seed = o.seed ?? (Date.now() >>> 0);
   const rng = new Rng(seed);
   const def = leagueDef(o.leagueId);
-  const clubTpl = def.teams.find((t) => t.id === o.clubId);
+  const clubTpl = o.custom ? { ...o.custom.template, id: 'custom-club' } : def.teams.find((t) => t.id === o.clubId);
   if (!clubTpl) throw new Error(`Club ${o.clubId} absent de ${def.name}`);
   const taken = new Set<string>(ALL_CLUBS.map((t) => t.id));
   for (const t of def.teams) taken.add(`city:${t.city}`);
@@ -60,8 +64,13 @@ export function createClubCareer(o: ClubCareerOptions): League {
 
   // le club de l'utilisateur : identité d'origine, effectif reconstruit
   const user = teamFromTemplate({ ...clubTpl, tier: 0.78 }, seed);
-  user.roster = generateRoster(clubTpl.id, seed ^ 0x5bd1e995, 0.85);
-  const squad = originalSquad(clubTpl.id, 1);
+  // club créé : un peu plus d'homogénéité dans l'effectif de départ, faute de joueurs vedettes conservés
+  user.roster = generateRoster(clubTpl.id, seed ^ 0x5bd1e995, o.custom ? 0.88 : 0.85);
+  if (o.custom) {
+    user.custom = true;
+    Object.assign(user.uniform, o.custom.uniform ?? {});
+  }
+  const squad = o.custom ? [] : originalSquad(clubTpl.id, 1);
   const kept = o.keepIds.slice(0, KEEP_PLAYERS).map((id) => squad.find((p) => p.id === id)).filter((p): p is Player => !!p);
   for (const p of kept) {
     // remplace le joueur généré le plus faible au même poste
@@ -97,23 +106,23 @@ export function createClubCareer(o: ClubCareerOptions): League {
   l.finances[user.id].fanSupport = 70;
   for (const t of active) if (t.id !== user.id) l.finances[t.id].cash = 15000;
   l.transferList = generateTransferList(l);
-  l.news.unshift(`🏁 ${displayName(user)} repart de la ${DIVISIONS[3].name} : ${kept.length ? `${kept.map(fullName).join(', ')} ${kept.length > 1 ? 'restent' : 'reste'} au club.` : 'effectif entièrement renouvelé.'} Objectif : le top ${DIVISIONS[3].promote} pour monter.`);
+  if (o.custom) l.news.unshift(`🏁 Fondation de ${displayName(user)} : premiers matchs contre les clubs locaux de ${DIVISIONS[3].name}. Gagnez les playoffs pour monter !`);
+  else l.news.unshift(`🏁 ${displayName(user)} repart de la ${DIVISIONS[3].name} : ${kept.length ? `${kept.map(fullName).join(', ')} ${kept.length > 1 ? 'restent' : 'reste'} au club.` : 'effectif entièrement renouvelé.'} Objectif : le top 4 puis gagner les playoffs pour monter.`);
   return l;
 }
 
 /** Objectif de la saison selon la division. */
 export function divisionObjective(level: DivisionLevel): string {
   const d = DIVISIONS[level];
-  if (level === 1) return `Gagner le titre (top 4 pour les playoffs) · éviter les ${d.relegate} dernières places`;
-  return `Finir dans le top ${d.promote} pour monter${d.relegate ? ` · éviter les ${d.relegate} dernières places` : ''}`;
+  if (level === 1) return `Finir dans le top 4 puis gagner les playoffs du titre · éviter la dernière place`;
+  return `Finir dans le top 4 puis gagner les playoffs : seul le vainqueur monte${d.relegate ? ' · éviter la dernière place' : ''}`;
 }
 
 /** Zone d'un rang dans le classement de la division active. */
-export function rankZone(l: League, rank: number): 'up' | 'down' | 'title' | null {
+export function rankZone(l: League, rank: number): 'down' | 'title' | null {
   if (!l.pyramid) return null;
   const d = DIVISIONS[l.pyramid.level];
-  if (d.playoffs && rank < 4) return 'title';
-  if (rank < d.promote) return 'up';
+  if (rank < 4) return 'title';
   if (d.relegate && rank >= l.teams.length - d.relegate) return 'down';
   return null;
 }
@@ -128,27 +137,36 @@ export function applyPromotions(l: League): string[] {
   if (!p) return [];
   const rng = new Rng(l.seed + l.season * 271);
   const order: Record<DivisionLevel, string[]> = { 1: [], 2: [], 3: [] };
+  const winner: Record<DivisionLevel, string> = { 1: '', 2: '', 3: '' };
+  const noisy = (ids: string[]) => ids.map((id) => ({ id, v: (p.templates[id]?.tier ?? 0.8) + rng.normal(0, 0.035) })).sort((a, b) => b.v - a.v).map((x) => x.id);
   for (const lvl of [1, 2, 3] as DivisionLevel[]) {
-    if (lvl === p.level) order[lvl] = standings(l).map((r) => r.teamId);
-    else order[lvl] = [...p.members[lvl]].map((id) => ({ id, v: (p.templates[id]?.tier ?? 0.8) + rng.normal(0, 0.035) })).sort((a, b) => b.v - a.v).map((x) => x.id);
+    if (lvl === p.level) {
+      order[lvl] = standings(l).map((r) => r.teamId);
+      winner[lvl] = l.champion && order[lvl].includes(l.champion) ? l.champion : order[lvl][0];
+    } else {
+      order[lvl] = noisy([...p.members[lvl]]);
+      // playoffs simulés entre les 4 premiers
+      winner[lvl] = noisy(order[lvl].slice(0, 4))[0];
+    }
   }
   const next: Record<DivisionLevel, string[]> = { 1: [], 2: [], 3: [] };
   for (const lvl of [1, 2, 3] as DivisionLevel[]) {
     const d = DIVISIONS[lvl];
     const ids = order[lvl];
-    const up = lvl > 1 ? ids.slice(0, d.promote) : [];
-    const down = lvl < 3 ? ids.slice(ids.length - d.relegate) : [];
+    const up = lvl > 1 && d.promote ? [winner[lvl]] : [];
+    const down = lvl < 3 && d.relegate > 0 ? ids.filter((id) => !up.includes(id)).slice(-d.relegate) : [];
     next[lvl].push(...ids.filter((id) => !up.includes(id) && !down.includes(id)));
     if (up.length) next[(lvl - 1) as DivisionLevel].push(...up);
     if (down.length) next[(lvl + 1) as DivisionLevel].push(...down);
   }
+  if (winner[p.level] === l.userTeamId) (l.trophies ??= []).push(`Champion de ${DIVISIONS[p.level].name} ${l.season}`);
   const oldLevel = p.level;
   const rank = order[oldLevel].indexOf(l.userTeamId);
   const newLevel = ([1, 2, 3] as DivisionLevel[]).find((lvl) => next[lvl].includes(l.userTeamId))!;
   const moved = newLevel < oldLevel ? 'up' : newLevel > oldLevel ? 'down' : 'stay';
   p.log.push({ season: l.season, level: oldLevel, rank: rank + 1, moved });
   const msgs: string[] = [];
-  if (moved === 'up') msgs.push(`⬆️ PROMOTION ! Votre club monte en ${DIVISIONS[newLevel].name}.`);
+  if (moved === 'up') msgs.push(`⬆️ PROMOTION ! Vainqueur des playoffs, votre club monte en ${DIVISIONS[newLevel].name}.`);
   else if (moved === 'down') msgs.push(`⬇️ Relégation en ${DIVISIONS[newLevel].name}.`);
   else msgs.push(`Votre club reste en ${DIVISIONS[newLevel].name} (${rank + 1}e).`);
   p.members = next;

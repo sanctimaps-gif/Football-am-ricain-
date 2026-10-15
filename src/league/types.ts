@@ -67,7 +67,7 @@ export type DivisionLevel = 1 | 2 | 3;
 export interface DivisionInfo {
   level: DivisionLevel;
   name: string;
-  /** Places de montée (en haut du classement) et de relégation (en bas). */
+  /** Montées (vainqueur des playoffs) et relégations (derniers du classement). */
   promote: number;
   relegate: number;
   /** Playoffs pour le titre (première division). */
@@ -133,6 +133,21 @@ export interface League {
   cup?: CupState;
   /** Joueurs proposés par des clubs étrangers (carrière de club). */
   transferList?: Player[];
+  /** Tournoi intersaison contre des clubs d'autres régions du monde (carrière de club). */
+  interseason?: InterseasonCup | null;
+  /** Trophées remportés par le club de l'utilisateur. */
+  trophies?: string[];
+}
+
+export interface InterseasonCup {
+  name: string;
+  season: number;
+  /** Adversaires (modèles d'équipes d'autres ligues) ; l'utilisateur joue avec son effectif. */
+  opponents: TeamTemplate[];
+  games: PlayoffGame[];
+  /** Primes (k$) : vainqueur, finaliste. */
+  prize: [number, number];
+  done: boolean;
 }
 
 export const ROSTER_MIN = 45;
@@ -143,10 +158,13 @@ export const POSITION_NEEDS: Record<Position, number> = {
   QB: 3, RB: 3, FB: 1, WR: 6, TE: 3, C: 2, OG: 4, OT: 4, DE: 4, DT: 4, LB: 6, CB: 5, FS: 2, SS: 2, K: 1, P: 1,
 };
 
-/** Pyramide de la carrière de club : 3 divisions de 10 équipes. */
+/**
+ * Pyramide de la carrière de club : 3 divisions de 10 équipes. Dans chaque division, les 4 premiers jouent des
+ * playoffs (demi-finales, finale) : seul le vainqueur monte. Le dernier descend.
+ */
 export const DIVISIONS: Record<DivisionLevel, DivisionInfo> = {
-  1: { level: 1, name: 'Première division', promote: 0, relegate: 3, playoffs: true, incomeFactor: 1 },
-  2: { level: 2, name: 'Deuxième division', promote: 3, relegate: 4, playoffs: false, incomeFactor: 0.5 },
-  3: { level: 3, name: 'Troisième division', promote: 4, relegate: 0, playoffs: false, incomeFactor: 0.3 },
+  1: { level: 1, name: 'Première division', promote: 0, relegate: 1, playoffs: true, incomeFactor: 1 },
+  2: { level: 2, name: 'Deuxième division', promote: 1, relegate: 1, playoffs: true, incomeFactor: 0.5 },
+  3: { level: 3, name: 'Troisième division', promote: 1, relegate: 0, playoffs: true, incomeFactor: 0.3 },
 };
 export const DIVISION_SIZE = 10;

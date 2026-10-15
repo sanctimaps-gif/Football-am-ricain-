@@ -28,6 +28,9 @@ export interface Appearance {
   heightCm: number;
   weightKg: number;
   visor: boolean;
+  /** Joueuse (équipes féminines) : silhouette et cheveux adaptés. */
+  female?: boolean;
+  hair?: number;
 }
 
 export interface Contract {
@@ -84,6 +87,14 @@ export interface Uniform {
   awayPants: string;
   numberColor: string;
   stripe: string;
+  /** Éditeur de maillot (facultatif) : couleurs de chaque partie de la tenue à domicile. */
+  sleeves?: string;
+  shoulders?: string;
+  collar?: string;
+  socks?: string;
+  cleats?: string;
+  gloves?: string;
+  mask?: string;
 }
 
 export interface Stadium {
@@ -107,6 +118,8 @@ export interface Team {
   /** Profondeur de poste : ids ordonnés par poste. */
   depth: Partial<Record<Position, string[]>>;
   custom?: boolean;
+  /** Équipe féminine. */
+  women?: boolean;
   licensed?: false; // architecture : seules des équipes fictives sont livrées
 }
 

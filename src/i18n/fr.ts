@@ -39,6 +39,7 @@ export const fr: Record<string, string> = {
   'setup.stadium': 'Stade',
   'setup.minutes': '{n} min',
   'settings.playClock': 'Chrono de jeu de 40 s (retard de jeu)',
+  'settings.simpleControls': 'Commandes simplifiées (1 bouton, glisser = feinte, toucher un receveur = passe)',
   'hud.playClock': 'Chrono de jeu',
   'diff.easy': 'Facile', 'diff.normal': 'Normal', 'diff.hard': 'Difficile',
   // match

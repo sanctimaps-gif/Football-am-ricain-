@@ -16,6 +16,8 @@ export interface Settings {
   leftHanded: boolean;
   penalties: boolean;
   playClock: boolean;
+  /** Commandes simplifiées (un bouton contextuel, gestes, IA de déplacement). */
+  simpleControls: boolean;
   volumes: Volumes;
 }
 
@@ -33,6 +35,7 @@ export const DEFAULT_SETTINGS: Settings = {
   leftHanded: false,
   penalties: true,
   playClock: true,
+  simpleControls: false,
   volumes: { master: 0.8, music: 0.5, sfx: 0.8, crowd: 0.6 },
 };
 
@@ -51,6 +54,6 @@ export function sanitizeSettings(raw: unknown): Settings {
     v[k] = typeof v[k] === 'number' && isFinite(v[k]) ? Math.min(1, Math.max(0, v[k])) : DEFAULT_SETTINGS.volumes[k];
   }
   s.volumes = v;
-  for (const b of ['autoSwitch', 'aimAssist', 'userKicks', 'leftHanded', 'penalties', 'playClock'] as const) s[b] = !!s[b];
+  for (const b of ['autoSwitch', 'aimAssist', 'userKicks', 'leftHanded', 'penalties', 'playClock', 'simpleControls'] as const) s[b] = !!s[b];
   return s;
 }

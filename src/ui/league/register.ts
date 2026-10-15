@@ -4,6 +4,7 @@ import { showConfirm } from '../dialog';
 import { ChallengesScreen } from '../screens/ChallengesScreen';
 import { openTraining } from '../screens/Tutorial';
 import { ClubSetup } from './ClubSetup';
+import { UTHub } from '../ut/UTHub';
 import { CupSetup } from './CupSetup';
 import { FranchiseCreator, PlayerCreator, SavesScreen, TeamPickScreen } from './NewGameScreens';
 
@@ -15,6 +16,7 @@ export function registerLeagueModes(): void {
     { id: 'season', icon: '📅', label: () => 'Championnats', sub: () => '7 ligues ou ligue personnalisée.', open: (app) => app.go(new TeamPickScreen(app, 'season')) },
     { id: 'cups', icon: '🏆', label: () => 'Coupes & tournois', sub: () => 'Coupes nationales, continentales, des Nations.', open: (app) => app.go(new CupSetup(app)) },
     { id: 'challenges', icon: '⚡', label: () => 'Défis & événements', sub: () => 'Moments décisifs et défi de la semaine.', open: (app) => app.go(new ChallengesScreen(app)) },
+    { id: 'ut', icon: '🃏', label: () => 'Ultimate Team', sub: () => 'Cartes, packs, EVO, Journeys, Arena, VS.', open: (app) => UTHub.open(app) },
     { id: 'coach', icon: '📋', label: () => 'Carrière de coach', sub: () => 'Objectifs de la direction, draft, contrats.', open: (app) => app.go(new TeamPickScreen(app, 'coach')) },
     { id: 'franchise', icon: '🛠️', label: () => t('menu.franchise'), sub: () => 'Créez votre club : logo, maillots, budget.', open: (app) => app.go(new FranchiseCreator(app)) },
   );

@@ -2,6 +2,7 @@ import { Rng } from '../core/rng';
 import { buildDepthChart, generatePlayer, salaryFor } from '../data/generator';
 import { overall, overallFor } from '../data/ratings';
 import { ALL_POSITIONS, fullName, type Attributes, type Player, type Position, type Team } from '../data/types';
+import { createInterseason, simulateInterseason } from './interseason';
 import { applyPromotions } from './pyramid';
 import { roundRobin } from './schedule';
 import { generateTransferList } from './transfers';
@@ -151,6 +152,10 @@ export function endSeason(l: League): string[] {
   l.draftPick = 0;
   l.draftClass = generateDraftClass(l, l.teams.length * l.draftRounds + 12);
   l.phase = 'draft';
+  if (l.mode === 'club') {
+    l.interseason = createInterseason(l);
+    report.push(`🌍 ${l.interseason.name} : un tournoi intersaison contre des clubs d'autres régions vous attend (accueil).`);
+  }
   return report;
 }
 
@@ -205,7 +210,10 @@ export function runAiDraft(l: League, stopAtUser = true): void {
 export function startNewSeason(l: League): string[] {
   const rng = new Rng(l.seed + l.season * 55);
   // carrière de club : montées et relégations avant de recomposer la division
-  const msgs = l.pyramid ? applyPromotions(l) : [];
+  const msgs: string[] = [];
+  if (l.interseason && !l.interseason.done) msgs.push(...simulateInterseason(l, true));
+  l.interseason = null;
+  if (l.pyramid) msgs.push(...applyPromotions(l));
   // les équipes IA complètent leur effectif avec des agents libres
   for (const t of l.teams) {
     if (t.id === l.userTeamId) continue;

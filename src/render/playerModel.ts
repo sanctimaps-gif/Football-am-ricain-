@@ -16,6 +16,11 @@ export interface TeamLook {
   helmet: THREE.MeshStandardMaterial;
   stripe: THREE.MeshStandardMaterial;
   socks: THREE.MeshStandardMaterial;
+  sleeves: THREE.MeshStandardMaterial;
+  collar: THREE.MeshStandardMaterial;
+  cleats: THREE.MeshStandardMaterial;
+  gloves: THREE.MeshStandardMaterial;
+  mask: THREE.MeshStandardMaterial;
   numberColor: string;
   jerseyColor: string;
 }
@@ -23,13 +28,19 @@ export interface TeamLook {
 export function makeTeamLook(team: Team, home: boolean): TeamLook {
   const u = team.uniform;
   const jerseyColor = home ? u.homeJersey : u.awayJersey;
+  const std = (color: string, roughness: number, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
   return {
-    jersey: new THREE.MeshStandardMaterial({ color: jerseyColor, roughness: 0.7 }),
-    pads: new THREE.MeshStandardMaterial({ color: jerseyColor, roughness: 0.55 }),
+    jersey: std(jerseyColor, 0.7),
+    pads: std(home ? u.shoulders ?? jerseyColor : jerseyColor, 0.55),
+    sleeves: std(home ? u.sleeves ?? jerseyColor : jerseyColor, 0.7),
+    collar: std(u.collar ?? (home ? u.stripe : team.colors.primary), 0.6),
+    cleats: std(u.cleats ?? '#111111', 0.6),
+    gloves: std(u.gloves ?? '#1b1b1b', 0.7),
+    mask: std(u.mask ?? '#c9ced6', 0.3, 0.6),
     pants: new THREE.MeshStandardMaterial({ color: home ? u.homePants : u.awayPants, roughness: 0.65 }),
     helmet: new THREE.MeshStandardMaterial({ color: u.helmet, roughness: 0.25, metalness: 0.35 }),
     stripe: new THREE.MeshStandardMaterial({ color: u.stripe, roughness: 0.4 }),
-    socks: new THREE.MeshStandardMaterial({ color: home ? team.colors.primary : team.colors.secondary === '#FFFFFF' ? team.colors.primary : team.colors.secondary, roughness: 0.8 }),
+    socks: std(u.socks ?? (home ? team.colors.primary : team.colors.secondary === '#FFFFFF' ? team.colors.primary : team.colors.secondary), 0.8),
     numberColor: home ? u.numberColor : team.colors.primary,
     jerseyColor,
   };
@@ -54,10 +65,11 @@ const G = {
   numberPlane: new THREE.PlaneGeometry(0.26, 0.26),
   shadowBlob: new THREE.CircleGeometry(0.42, 16),
   face: new THREE.SphereGeometry(0.1, 8, 6),
+  collar: new THREE.TorusGeometry(0.085, 0.022, 6, 14),
+  ponytail: new THREE.CapsuleGeometry(0.045, 0.16, 3, 6),
 };
-const MASK_MAT = new THREE.MeshStandardMaterial({ color: '#c9ced6', metalness: 0.6, roughness: 0.3 });
-const CLEAT_MAT = new THREE.MeshStandardMaterial({ color: '#111111', roughness: 0.6 });
-const GLOVE_MAT = new THREE.MeshStandardMaterial({ color: '#1b1b1b', roughness: 0.7 });
+const HAIR = ['#1a1209', '#3b2414', '#6b4423', '#a87a42', '#d9b46a', '#8c2f1b'];
+const HAIR_MATS = HAIR.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }));
 const SKIN_MATS = SKIN.map((c) => new THREE.MeshStandardMaterial({ color: c, roughness: 0.8 }));
 const VISOR_MAT = new THREE.MeshStandardMaterial({ color: '#10141a', metalness: 0.8, roughness: 0.15, transparent: true, opacity: 0.85 });
 const BLOB_MAT = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.28, depthWrite: false });
@@ -115,7 +127,8 @@ export class PlayerView {
     this.playerId = player.id;
     const heavy = ['OT', 'OG', 'C', 'DT', 'DE'].includes(player.position);
     this.bodyScale = player.appearance.heightCm / 188;
-    this.widthScale = heavy ? 1.22 : player.position === 'K' || player.position === 'P' ? 0.88 : player.position === 'WR' || player.position === 'CB' ? 0.94 : 1.0;
+    const female = !!player.appearance.female;
+    this.widthScale = (female ? 0.9 : 1) * (heavy ? 1.22 : player.position === 'K' || player.position === 'P' ? 0.88 : player.position === 'WR' || player.position === 'CB' ? 0.94 : 1.0);
     const skin = SKIN_MATS[player.appearance.skinTone % SKIN_MATS.length];
     this.root.add(this.body);
     this.body.add(this.hips);
@@ -151,6 +164,10 @@ export class PlayerView {
     const neck = this.part(G.neck, skin);
     neck.position.y = 0.76;
     this.torso.add(neck);
+    const collar = this.part(G.collar, look.collar);
+    collar.position.y = 0.71;
+    collar.rotation.x = Math.PI / 2;
+    this.torso.add(collar);
     this.head.position.y = 0.9;
     this.torso.add(this.head);
     const helmet = this.part(G.helmet, look.helmet);
@@ -159,15 +176,22 @@ export class PlayerView {
     const stripe = this.part(G.stripe, look.stripe);
     stripe.position.y = 0.155;
     this.head.add(stripe);
-    const mask = this.part(G.mask, MASK_MAT);
+    const mask = this.part(G.mask, look.mask);
     mask.position.set(0.13, -0.03, 0);
     mask.rotation.set(0, Math.PI / 2, Math.PI / 2);
     this.head.add(mask);
     for (const yy of [-0.06, 0.0]) {
-      const bar = this.part(G.maskBar, MASK_MAT);
+      const bar = this.part(G.maskBar, look.mask);
       bar.rotation.x = Math.PI / 2;
       bar.position.set(0.17, yy, 0);
       this.head.add(bar);
+    }
+    if (female) {
+      // queue de cheval qui dépasse sous l'arrière du casque
+      const tail = this.part(G.ponytail, HAIR_MATS[(player.appearance.hair ?? 0) % HAIR_MATS.length]);
+      tail.position.set(-0.16, -0.12, 0);
+      tail.rotation.z = -0.5;
+      this.head.add(tail);
     }
     const face = this.part(G.face, player.appearance.visor ? VISOR_MAT : skin);
     face.position.set(0.09, -0.02, 0);
@@ -202,7 +226,7 @@ export class PlayerView {
   private makeArm(look: TeamLook, skin: THREE.Material, side: number): Limb {
     const pivot = new THREE.Group();
     pivot.position.set(0, 0.6, side * 0.36 * this.widthScale);
-    const upper = this.part(G.upperArm, look.jersey);
+    const upper = this.part(G.upperArm, look.sleeves);
     upper.position.y = -0.15;
     pivot.add(upper);
     const lower = new THREE.Group();
@@ -210,7 +234,7 @@ export class PlayerView {
     const fore = this.part(G.foreArm, skin);
     fore.position.y = -0.13;
     lower.add(fore);
-    const glove = this.part(G.glove, GLOVE_MAT);
+    const glove = this.part(G.glove, look.gloves);
     glove.position.y = -0.29;
     lower.add(glove);
     pivot.add(lower);
@@ -230,7 +254,7 @@ export class PlayerView {
     const shin = this.part(G.shin, look.socks);
     shin.position.y = -0.2;
     lower.add(shin);
-    const cleat = this.part(G.cleat, CLEAT_MAT);
+    const cleat = this.part(G.cleat, look.cleats);
     cleat.position.set(0.05, -0.42, 0);
     lower.add(cleat);
     pivot.add(lower);

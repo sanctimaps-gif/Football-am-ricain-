@@ -1,8 +1,8 @@
 import { Rng, hashString } from '../core/rng';
-import { FIRST_NAMES, LAST_NAMES } from './names';
+import { FIRST_NAMES, FIRST_NAMES_F, LAST_NAMES } from './names';
 import { overallFor } from './ratings';
 import { TEAM_TEMPLATES, type TeamTemplate } from './teams';
-import { leagueDef, NATIONS } from './world';
+import { leagueDef, NATIONS, NATIONS_W } from './world';
 import type { Attributes, Player, Position, Team } from './types';
 
 type AttrProfile = Partial<Record<keyof Attributes, number>>;
@@ -72,7 +72,7 @@ export function generateAttributes(rng: Rng, pos: Position, quality: number): At
   };
 }
 
-export function generatePlayer(rng: Rng, pos: Position, quality: number, id: string, usedNumbers: Set<number>): Player {
+export function generatePlayer(rng: Rng, pos: Position, quality: number, id: string, usedNumbers: Set<number>, female = false): Player {
   const attrs = generateAttributes(rng, pos, quality);
   const ranges = NUMBER_RANGES[pos];
   let number = 0;
@@ -91,7 +91,7 @@ export function generatePlayer(rng: Rng, pos: Position, quality: number, id: str
   const ovr = overallFor(attrs, pos);
   return {
     id,
-    firstName: rng.pick(FIRST_NAMES),
+    firstName: rng.pick(female ? FIRST_NAMES_F : FIRST_NAMES),
     lastName: rng.pick(LAST_NAMES),
     position: pos,
     number,
@@ -101,9 +101,10 @@ export function generatePlayer(rng: Rng, pos: Position, quality: number, id: str
     contract: { salary: salaryFor(ovr, pos), years: rng.int(1, 5) },
     appearance: {
       skinTone: rng.int(0, 5),
-      heightCm: Math.round(h + rng.normal(0, 4)),
-      weightKg: Math.round(w + rng.normal(0, 5)),
+      heightCm: Math.round(h - (female ? 12 : 0) + rng.normal(0, 4)),
+      weightKg: Math.round(w * (female ? 0.78 : 1) + rng.normal(0, 5)),
       visor: rng.chance(0.3),
+      ...(female ? { female: true, hair: rng.int(0, 5) } : {}),
     },
     injuryWeeks: 0,
     xp: 0,
@@ -123,7 +124,7 @@ export function buildDepthChart(roster: Player[]): Team['depth'] {
   return depth;
 }
 
-export function generateRoster(teamId: string, seed: number, tier: number): Player[] {
+export function generateRoster(teamId: string, seed: number, tier: number, female = false): Player[] {
   const rng = new Rng(seed);
   const roster: Player[] = [];
   const used = new Set<number>();
@@ -132,7 +133,7 @@ export function generateRoster(teamId: string, seed: number, tier: number): Play
     for (let i = 0; i < ROSTER_TEMPLATE[pos]; i++) {
       // les titulaires sont meilleurs que les remplaçants
       const quality = tier * (i === 0 ? 1.04 : i === 1 ? 0.98 : 0.92) * rng.range(0.96, 1.03);
-      roster.push(generatePlayer(rng, pos, quality, `${teamId}-p${n++}`, used));
+      roster.push(generatePlayer(rng, pos, quality, `${teamId}-p${n++}`, used, female));
     }
   }
   return roster;
@@ -149,7 +150,7 @@ export function isLight(hex: string): boolean {
 
 export function teamFromTemplate(t: TeamTemplate, leagueSeed = 1): Team {
   // écart de niveau resserré pour garder des matchs disputés
-  const roster = generateRoster(t.id, hashString(t.id) ^ leagueSeed, 1 + (t.tier - 1) * 0.5);
+  const roster = generateRoster(t.id, hashString(t.id) ^ leagueSeed, 1 + (t.tier - 1) * 0.5, !!t.women);
   return {
     id: t.id,
     city: t.city,
@@ -170,6 +171,7 @@ export function teamFromTemplate(t: TeamTemplate, leagueSeed = 1): Team {
     stadium: { name: t.stadium, capacity: t.capacity, standColor: t.primary, roof: false },
     roster,
     depth: buildDepthChart(roster),
+    ...(t.women ? { women: true } : {}),
   };
 }
 
@@ -197,6 +199,6 @@ export function teamOverall(team: Team): number {
 
 /** Équipes d'une ligue régionale (ou des sélections nationales avec l'id « nations »). */
 export function createTeamsFor(groupId: string, seed = 1): Team[] {
-  const templates = groupId === 'nations' ? NATIONS : leagueDef(groupId).teams;
+  const templates = groupId === 'nations' ? NATIONS : groupId === 'nationsF' ? NATIONS_W : leagueDef(groupId).teams;
   return templates.map((t) => teamFromTemplate(t, seed));
 }

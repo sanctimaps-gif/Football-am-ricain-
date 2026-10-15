@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 — inspirations Rugby Nations 26 et Madden Mobile
+
+### Ajouté
+- Carrière de club : création de son propre club (pays d'origine, identité, maillot), montée par playoffs (top 4,
+  seul le vainqueur monte, le dernier descend), tournoi intersaison contre des clubs d'autres régions, trophées.
+- Éditeur de maillot détaillé (maillot, manches, épaules, col, numéros, pantalon, chaussettes, chaussures, gants,
+  casque, bande, grille, tenue extérieure) visible sur les joueurs 3D.
+- Ultimate Team hors ligne : cartes, raretés, cartes doubles et synergie, traits, EVO, packs (monnaies gagnées en
+  jouant uniquement), playbook à budget, défis du jour, Journeys (30 étapes), Arena, VS, Field Pass gratuit,
+  événement du mois.
+- Équipes féminines (12 sélections, Coupe du monde féminine, défi) avec modèle 3D adapté.
+- Commandes simplifiées en option.
+
 ## 0.3.0 — monde et modes façon « football league »
 
 ### Ajouté

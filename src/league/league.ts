@@ -261,17 +261,12 @@ export function advanceWeek(l: League): void {
     }
     if (l.pyramid) {
       const order = standings(l).map((r) => r.teamId);
-      if (!DIVISIONS[l.pyramid.level].playoffs) {
-        l.champion = order[0];
-        l.phase = 'offseason';
-        l.news.unshift(`🏆 ${teamInfo(l, order[0]).name} termine champion de ${DIVISIONS[l.pyramid.level].name}.`);
-        return;
-      }
       l.phase = 'playoffs';
       l.playoffs = seededKnockout(order.slice(0, 4));
       l.week++;
       const userIn = l.playoffs.some((g) => g.home === l.userTeamId || g.away === l.userTeamId);
-      l.news.unshift(userIn ? '🏆 Votre club dispute les playoffs pour le titre !' : 'Votre club ne dispute pas les playoffs pour le titre.');
+      const d = DIVISIONS[l.pyramid.level];
+      l.news.unshift(userIn ? `🏅 Votre club dispute les playoffs de ${d.name}${d.promote ? ' : le vainqueur monte !' : ' pour le titre !'}` : `Votre club ne dispute pas les playoffs de ${d.name}.`);
       return;
     }
     l.phase = 'playoffs';
@@ -292,7 +287,7 @@ export function advanceWeek(l: League): void {
     if (final?.played) {
       l.champion = final.winner;
       l.phase = l.cup ? 'done' : 'offseason';
-      l.news.unshift(`🏆 ${teamInfo(l, final.winner!).name} remporte ${l.cup ? l.cup.name : 'le titre'} !`);
+      l.news.unshift(`🏆 ${teamInfo(l, final.winner!).name} remporte ${l.cup ? l.cup.name : l.pyramid ? `les playoffs de ${DIVISIONS[l.pyramid.level].name}` : 'le titre'} !`);
     }
     return;
   }

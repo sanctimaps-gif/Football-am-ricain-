@@ -4,7 +4,9 @@ Jeu de football américain en 3D conçu pour téléphone en **mode paysage**, av
 IA offensive et défensive, règles NFL et une structure de modes inspirée des jeux de football sans licences :
 109 équipes (7 ligues régionales aux clubs « Ville + couleur » + 16 sélections), **carrière de club** (départ en 3e
 division avec 3 joueurs, montées, transferts), carrière de joueur, championnats (dont ligue personnalisée), coupes et
-tournois, défis et événement de la semaine, carrière de coach, franchise.
+tournois, défis et événement de la semaine, **Ultimate Team hors ligne** (cartes, packs gagnés en jouant, EVO, Journeys,
+Arena, VS, Field Pass), équipes féminines, carrière de coach, franchise. Club créé ou repris, montée par playoffs,
+éditeur de maillot, commandes simplifiées en option.
 
 > Nom de travail modifiable dans `src/core/config.ts` (`GAME_NAME`).
 

@@ -14,6 +14,7 @@ import { MatchScreen } from './MatchScreen';
 export const TEAM_GROUPS: { id: string; label: string; flag: string }[] = [
   ...LEAGUES.map((l) => ({ id: l.id, label: l.short, flag: l.flag })),
   { id: 'nations', label: 'Nations', flag: '🏳️' },
+  { id: 'nationsF', label: 'Nations F', flag: '♀️' },
 ];
 
 /** Sélection des équipes et options du match rapide. */

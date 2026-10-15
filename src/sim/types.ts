@@ -106,6 +106,8 @@ export interface SimInput {
   protect: boolean;
   fairCatch: boolean;
   kickMeter: number | null; // valeur du kick meter [-1,1] si l'utilisateur a frappé
+  /** Commandes simplifiées : sans joystick, l'IA déplace le joueur contrôlé (sauf le QB dans la poche). */
+  autoMove?: boolean;
 }
 
 export const emptyInput = (): SimInput => ({

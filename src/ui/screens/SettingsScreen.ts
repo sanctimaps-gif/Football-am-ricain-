@@ -4,7 +4,7 @@ import type { Settings } from '../../save/settings';
 import type { App, Screen } from '../App';
 import { el, onAction } from '../dom';
 
-type BoolKey = 'autoSwitch' | 'aimAssist' | 'userKicks' | 'leftHanded' | 'penalties' | 'playClock';
+type BoolKey = 'autoSwitch' | 'aimAssist' | 'userKicks' | 'leftHanded' | 'penalties' | 'playClock' | 'simpleControls';
 
 export class SettingsScreen implements Screen {
   readonly el: HTMLElement;
@@ -33,6 +33,7 @@ export class SettingsScreen implements Screen {
           ${toggle('leftHanded', t('settings.leftHanded'))}
           ${toggle('penalties', t('settings.penalties'))}
           ${toggle('playClock', t('settings.playClock'))}
+          ${toggle('simpleControls', t('settings.simpleControls'))}
           ${slider('sensitivity', t('settings.sensitivity'), s.sensitivity, 0.5, 1.5, 0.05)}
         </div>
         <div class="panel scroll grow">
