@@ -471,7 +471,7 @@ export class MatchScreen implements Screen {
       // la bulle reste toujours entièrement visible et touchable
       b.style.display = p.visible ? '' : 'none';
       b.style.left = `${Math.min(w - 26, Math.max(26, p.x))}px`;
-      b.style.top = `${Math.min(h - 8, Math.max(92, p.y))}px`;
+      b.style.top = `${Math.min(h - 8, Math.max(62, p.y))}px`;
       b.classList.toggle('passive', !live);
       b.classList.toggle('sel', sim.passTarget === a.idx);
       if (live && qb) b.classList.toggle('covered', openness(sim, qb, a) < 1.5);

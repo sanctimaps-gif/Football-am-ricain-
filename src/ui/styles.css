@@ -252,3 +252,19 @@ button { touch-action: manipulation; -webkit-touch-callout: none; }
 .ut-pass { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); gap: 6px; }
 .pass-cell { border: 1px solid var(--line); border-radius: 10px; padding: 6px; display: flex; flex-direction: column; gap: 3px; font-size: 12px; opacity: .65; }
 .pass-cell.open { opacity: 1; border-color: var(--accent); }
+/* Tableau de score compact (une ligne, ~28 px) pour dégager la vue du terrain */
+.scorebug { top: calc(4px + var(--safe-t)); border-radius: 7px; box-shadow: 0 2px 8px rgba(0,0,0,.4); background: rgba(8,12,20,.72); }
+.scorebug .tm { gap: 4px; padding: 1px 7px; font-size: 13px; min-width: 0; }
+.scorebug .tm .sc { font-size: 16px; min-width: 20px; }
+.scorebug .tm .poss { width: 6px; height: 6px; }
+.scorebug .mid { display: flex; align-items: center; gap: 6px; padding: 1px 8px; font-size: 12px; min-width: 0; line-height: 1.15; }
+.scorebug .mid .clk { font-size: 15px; }
+.scorebug .mid .q { opacity: .8; }
+.scorebug .tos { flex-direction: column; gap: 2px; }
+.scorebug .tos > span { gap: 2px !important; }
+.scorebug .tos i { width: 6px; height: 2px; }
+.downbar { top: calc(31px + var(--safe-t)); padding: 0 9px; font-size: 11.5px; border-radius: 0 0 6px 6px; opacity: .92; }
+.hud-btn { width: 40px; height: 40px; border-radius: 10px; font-size: 17px; top: calc(4px + var(--safe-t)); background: rgba(8,12,20,.6); }
+.hud-btn.to { right: calc(54px + var(--safe-r)); font-size: 12px; padding: 0 8px; }
+.ticker { font-size: 12.5px; padding: 3px 10px; bottom: calc(6px + var(--safe-b)); background: rgba(8,12,20,.65); max-width: 40vw; }
+.toast { top: calc(52px + var(--safe-t)); font-size: 14px; padding: 5px 12px; }
