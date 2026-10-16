@@ -1,13 +1,22 @@
 # Crédits des ressources
 
-Le projet **n'utilise aucune ressource externe** (ni modèle 3D, ni texture, ni son, ni police, ni image téléchargés).
-Tout est généré par le code du dépôt :
+Une seule ressource externe : le modèle des joueurs réalistes (voir ci-dessous). Tout le reste est généré par le code du dépôt.
+
+## Ressource externe
+
+| Ressource | Auteur | Licence | Modifications |
+|---|---|---|---|
+| Joueur 3D réaliste avec squelette (`public/models/player.glb` et textures `public/models/*`) — « American Football Player », https://sketchfab.com/3d-models/american-football-player-10bf41a1c05a4c9cb74676b7dd8cb18e | blakeallen25 | CC BY 4.0 | Maillage allégé (≈11 000 triangles), casque d'origine supprimé (remplacé par un casque procédural), logos de marque effacés des textures, numéros d'origine retirés, couleurs d'équipe appliquées par masque, animation remplacée par une animation procédurale |
+
+Le modèle n'est utilisé qu'en qualités moyenne et haute ; en qualité basse (ou s'il ne se charge pas), les joueurs en primitives ci-dessous sont utilisés.
+
+## Ressources générées
 
 | Ressource | Origine |
 |---|---|
 | Terrain (gazon, lignes, numéros, en-buts, logo central) | Canvas 2D généré (`src/render/fieldTexture.ts`) |
 | Stade, tribunes, foule, poteaux, pylônes, bancs, tunnel, écran | Primitives Three.js (`src/render/stadium.ts`) |
-| Joueurs (casque, grille, épaulières, maillots, numéros, gants, crampons) | Primitives Three.js + numéros dessinés en Canvas (`src/render/playerModel.ts`) |
+| Joueurs en qualité basse (casque, grille, épaulières, maillots, numéros, gants, crampons) | Primitives Three.js + numéros dessinés en Canvas (`src/render/playerModel.ts`) |
 | Animations | Procédurales (`PlayerView.animate`) — provisoires, non issues de capture de mouvement |
 | Ballon | Primitives Three.js |
 | Logos des équipes et de la franchise créée | SVG générés à partir de formes et d'un glyphe (`src/ui/logo.ts`) |

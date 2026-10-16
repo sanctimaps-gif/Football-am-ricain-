@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.5.0 — joueurs réalistes
+
+### Ajouté
+- Joueurs 3D réalistes avec squelette (modèle CC BY 4.0 de blakeallen25, allégé) en qualités moyenne et haute :
+  couleurs d'équipe appliquées sur le maillot, le pantalon, les chaussettes et les accessoires, numéros devant et
+  derrière, 6 tons de peau, silhouette selon la taille, animation procédurale (course, appui, lancer, plaquage, au sol).
+- Casque procédural verni attaché à la tête (bande, grille, protections d'oreilles) aux couleurs de l'équipe.
+
+### Modifié
+- Logos de marque et numéros d'origine retirés des textures du modèle.
+- Les joueurs en primitives restent utilisés en qualité basse ou si le modèle ne se charge pas.
+
 ## 0.4.1 — rendu et commandes
 
 ### Ajouté

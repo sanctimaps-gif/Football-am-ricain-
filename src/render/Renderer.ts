@@ -7,6 +7,7 @@ import { attackDir } from '../rules/engine';
 import type { PlaySim } from '../sim/PlaySim';
 import type { Agent } from '../sim/types';
 import { makeTeamLook, PlayerBatcher, PlayerView, type TeamLook } from './playerModel';
+import { loadPlayerAssets, playerAssetsReady, SkinnedPlayerView } from './skinnedPlayer';
 import { buildSky, buildStadium, toScene, type StadiumParts } from './stadium';
 import { createStadiumEnvironment, PostFX } from './effects';
 
@@ -14,7 +15,7 @@ export type Quality = 'low' | 'medium' | 'high';
 export type CameraMode = 'behind' | 'broadcast';
 
 interface ViewState {
-  view: PlayerView;
+  view: PlayerView | SkinnedPlayerView;
   x: number;
   y: number;
   facing: number;
@@ -32,6 +33,7 @@ export class GameRenderer {
   private stadium: StadiumParts | null = null;
   private views = new Map<string, ViewState>();
   private looks: [TeamLook, TeamLook] | null = null;
+  private teams: [Team, Team] | null = null;
   private batcher: PlayerBatcher;
   private ball: THREE.Group;
   private ballShadow: THREE.Mesh;
@@ -138,6 +140,14 @@ export class GameRenderer {
     pMesh.frustumCulled = false;
     this.scene.add(pMesh);
     if (quality !== 'low') this.post = new PostFX(this.renderer, this.scene, this.camera, quality);
+    // joueurs réalistes : chargement en arrière-plan, les vues sont recréées une fois le modèle prêt
+    if (quality !== 'low') {
+      void loadPlayerAssets().then((ok) => {
+        if (!ok) return;
+        for (const v of this.views.values()) this.scene.remove(v.view.root);
+        this.views.clear();
+      });
+    }
     this.particles = { mesh: pMesh, vel: new Float32Array(pCount * 3), pos: new Float32Array(pCount * 3), life: new Float32Array(pCount), next: 0 };
     for (let i = 0; i < pCount; i++) {
       this.tmpM.makeScale(0, 0, 0);
@@ -156,6 +166,7 @@ export class GameRenderer {
     this.stadium = buildStadium(home, away, this.quality, Math.min(aniso, this.quality === 'high' ? 8 : 4));
     this.scene.add(this.stadium.group);
     this.looks = [makeTeamLook(home, true), makeTeamLook(away, false)];
+    this.teams = [home, away];
   }
 
   resize(w: number, h: number): void {
@@ -246,7 +257,10 @@ export class GameRenderer {
     let v = this.views.get(a.player.id);
     if (!v) {
       const look = this.looks![a.side];
-      const view = new PlayerView(a.player, look, this.quality !== 'low');
+      // modèle réaliste (si chargé, qualités moyenne et haute), sinon modèle simplifié instancié
+      const view = this.quality !== 'low' && playerAssetsReady()
+        ? new SkinnedPlayerView(a.player, a.side === 0 ? this.teams![0] : this.teams![1], look, this.quality === 'high')
+        : new PlayerView(a.player, look, this.quality !== 'low');
       this.scene.add(view.root);
       v = { view, x: a.x, y: a.y, facing: a.facing, seen: true };
       this.views.set(a.player.id, v);

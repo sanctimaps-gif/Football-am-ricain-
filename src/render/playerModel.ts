@@ -23,6 +23,8 @@ export interface TeamLook {
   mask: THREE.MeshStandardMaterial;
   numberColor: string;
   jerseyColor: string;
+  /** Couleurs brutes (modèle réaliste : matériaux teintés par rôle). */
+  colors: { jersey: string; trim: string; pants: string; cleats: string; socks: string; sleeve: string; helmet: string; mask: string; stripe: string };
 }
 
 export function makeTeamLook(team: Team, home: boolean): TeamLook {
@@ -44,6 +46,17 @@ export function makeTeamLook(team: Team, home: boolean): TeamLook {
     socks: std(u.socks ?? (home ? team.colors.primary : team.colors.secondary === '#FFFFFF' ? team.colors.primary : team.colors.secondary), 0.8),
     numberColor: home ? u.numberColor : team.colors.primary,
     jerseyColor,
+    colors: {
+      jersey: jerseyColor,
+      trim: home ? u.sleeves ?? u.stripe : team.colors.primary,
+      pants: home ? u.homePants : u.awayPants,
+      cleats: u.cleats ?? '#141414',
+      socks: u.socks ?? (home ? team.colors.primary : '#f2f2f2'),
+      sleeve: '#16181c',
+      helmet: u.helmet,
+      mask: u.mask ?? '#c9ced6',
+      stripe: u.stripe,
+    },
   };
 }
 
@@ -76,7 +89,7 @@ const VISOR_MAT = new THREE.MeshStandardMaterial({ color: '#10141a', metalness: 
 const BLOB_MAT = new THREE.MeshBasicMaterial({ color: '#000000', transparent: true, opacity: 0.28, depthWrite: false });
 
 const numberTexCache = new Map<string, THREE.CanvasTexture>();
-function numberTexture(num: number, color: string, outline: string): THREE.CanvasTexture {
+export function numberTexture(num: number, color: string, outline: string): THREE.CanvasTexture {
   const key = `${num}|${color}|${outline}`;
   let t = numberTexCache.get(key);
   if (t) return t;
@@ -96,6 +109,144 @@ function numberTexture(num: number, color: string, outline: string): THREE.Canva
   t.colorSpace = THREE.SRGBColorSpace;
   numberTexCache.set(key, t);
   return t;
+}
+
+/** Pose procédurale (angles en radians) commune au modèle simplifié et au modèle réaliste. */
+export interface Pose {
+  thighL: number; thighR: number; kneeL: number; kneeR: number;
+  armLz: number; armRz: number; armLx: number; armRx: number; elbowL: number; elbowR: number;
+  bob: number; headPitch: number; roll: number; lean: number; crouch: number; down: number;
+}
+
+export function computePose(action: AnimAction, actionTime: number, speed: number, stride: number, lineman: boolean, hasBall: boolean): Pose {
+    const run = Math.min(1, speed / 7);
+    const phase = stride * Math.PI;
+    let targetLean = 0;
+    let targetCrouch = 0;
+    let down = 0;
+    // valeurs par défaut (repos)
+    let thighL = 0, thighR = 0, kneeL = 0.05, kneeR = 0.05;
+    let armLz = 0.15, armRz = 0.15, armLx = 0.1, armRx = -0.1, elbowL = -0.3, elbowR = -0.3;
+    let bob = 0;
+    let headPitch = 0;
+    let bodyRoll = 0;
+    switch (action) {
+      case 'stance': {
+        targetCrouch = lineman ? 0.42 : 0.25;
+        targetLean = lineman ? 0.95 : 0.45;
+        thighL = 0.6; thighR = lineman ? 0.2 : 0.5;
+        kneeL = 1.0; kneeR = 0.9;
+        if (lineman) { armRz = 1.9; elbowR = 0; armLz = 0.6; elbowL = -0.6; }
+        else { armLz = 0.5; armRz = 0.5; elbowL = -0.6; elbowR = -0.6; }
+        headPitch = -targetLean * 0.7;
+        break;
+      }
+      case 'run':
+      case 'backpedal':
+      case 'idle': {
+        const amp = 0.95 * run;
+        const sgn = action === 'backpedal' ? -1 : 1;
+        thighL = Math.sin(phase) * amp * sgn;
+        thighR = -Math.sin(phase) * amp * sgn;
+        kneeL = 0.1 + Math.max(0, -Math.cos(phase)) * 1.4 * run;
+        kneeR = 0.1 + Math.max(0, Math.cos(phase)) * 1.4 * run;
+        armLz = -Math.sin(phase) * 0.9 * run + 0.1;
+        armRz = Math.sin(phase) * 0.9 * run + 0.1;
+        elbowL = -0.4 - run * 0.9;
+        elbowR = -0.4 - run * 0.9;
+        if (hasBall) { armRz = 0.5; elbowR = -1.9; armRx = 0.25; }
+        targetLean = action === 'backpedal' ? -0.05 : run * 0.32;
+        targetCrouch = action === 'backpedal' ? 0.15 : 0;
+        bob = Math.abs(Math.sin(phase)) * 0.06 * run;
+        if (action === 'idle') {
+          bob = Math.sin(actionTime * 2) * 0.01;
+          if (lineman) { targetCrouch = 0.12; targetLean = 0.2; }
+        }
+        headPitch = -targetLean * 0.6;
+        break;
+      }
+      case 'block': {
+        targetLean = 0.55;
+        targetCrouch = 0.2;
+        thighL = Math.sin(actionTime * 9) * 0.35 + 0.3;
+        thighR = -Math.sin(actionTime * 9) * 0.35 + 0.3;
+        kneeL = 0.7; kneeR = 0.7;
+        armLz = 1.45; armRz = 1.45; elbowL = -0.2; elbowR = -0.2;
+        armLx = 0.25; armRx = -0.25;
+        headPitch = -0.3;
+        break;
+      }
+      case 'throw': {
+        const t = Math.min(1, actionTime / 0.45);
+        armRz = t < 0.4 ? -1.2 * (t / 0.4) - 0.4 : -1.6 + (t - 0.4) * 5.5;
+        armRx = -1.2;
+        elbowR = t < 0.5 ? -1.6 : -0.3;
+        armLz = 1.0 - t; elbowL = -1.2;
+        targetLean = 0.1 + t * 0.25;
+        thighL = 0.35; thighR = -0.25; kneeL = 0.3; kneeR = 0.2;
+        break;
+      }
+      case 'catch': {
+        const t = Math.min(1, actionTime / 0.3);
+        armLz = 2.6 * t; armRz = 2.6 * t; elbowL = -0.3; elbowR = -0.3;
+        armLx = 0.2; armRx = -0.2;
+        thighL = Math.sin(phase) * 0.6 * run; thighR = -thighL;
+        kneeL = 0.4; kneeR = 0.4;
+        bob = actionTime < 0.4 ? Math.sin((actionTime / 0.4) * Math.PI) * 0.25 : 0;
+        headPitch = 0.3;
+        break;
+      }
+      case 'kick': {
+        const t = Math.min(1, actionTime / 0.5);
+        thighR = -0.8 + t * 2.6;
+        kneeR = t < 0.4 ? 1.4 : 0.1;
+        armLz = 0.6; armRz = -0.6; armLx = 0.8; armRx = -0.8;
+        targetLean = -0.15;
+        break;
+      }
+      case 'juke': {
+        bodyRoll = Math.sin(Math.min(1, actionTime / 0.4) * Math.PI) * 0.5;
+        thighL = 0.6; thighR = -0.4; kneeL = 0.9; kneeR = 0.5;
+        armLz = 0.8; armRz = 0.5; elbowR = -1.8;
+        targetLean = 0.35;
+        targetCrouch = 0.12;
+        break;
+      }
+      case 'handoff': {
+        armLz = 1.1; armRz = 1.1; elbowL = -0.6; elbowR = -0.6;
+        targetLean = 0.2;
+        break;
+      }
+      case 'dive':
+      case 'down': {
+        down = 1;
+        armLz = 2.8; armRz = 2.8; elbowL = -0.2; elbowR = -0.2;
+        thighL = -0.2; thighR = 0.1; kneeL = 0.3; kneeR = 0.6;
+        break;
+      }
+      case 'celebrate': {
+        const t = actionTime * 6;
+        bob = Math.max(0, Math.sin(t)) * 0.35;
+        armLz = 2.9 + Math.sin(t) * 0.2; armRz = 2.9 - Math.sin(t) * 0.2;
+        armLx = 0.4; armRx = -0.4; elbowL = -0.2; elbowR = -0.2;
+        thighL = 0.2; thighR = -0.1; kneeL = Math.max(0, Math.sin(t)) * 0.8; kneeR = kneeL;
+        headPitch = 0.35;
+        break;
+      }
+      case 'kneel': {
+        targetCrouch = 0.45;
+        thighL = 1.4; kneeL = 1.5; thighR = -0.2; kneeR = 2.3;
+        armLz = 0.6; armRz = 0.6; elbowR = -1.6;
+        break;
+      }
+      case 'hold': {
+        targetCrouch = 0.5;
+        thighL = 1.2; kneeL = 2.0; thighR = 0.6; kneeR = 2.3;
+        armLz = 1.2; armRz = 1.2; elbowL = -0.4;
+        break;
+      }
+    }
+  return { thighL, thighR, kneeL, kneeR, armLz, armRz, armLx, armRx, elbowL, elbowR, bob, headPitch, roll: bodyRoll, lean: targetLean, crouch: targetCrouch, down };
 }
 
 interface Limb {
@@ -268,133 +419,12 @@ export class PlayerView {
    */
   animate(action: AnimAction, actionTime: number, speed: number, stride: number, dt: number, lineman: boolean, hasBall: boolean): void {
     const k = Math.min(1, dt * 10);
-    const run = Math.min(1, speed / 7);
-    const phase = stride * Math.PI;
-    let targetLean = 0;
-    let targetCrouch = 0;
-    let down = 0;
-    // valeurs par défaut (repos)
-    let thighL = 0, thighR = 0, kneeL = 0.05, kneeR = 0.05;
-    let armLz = 0.15, armRz = 0.15, armLx = 0.1, armRx = -0.1, elbowL = -0.3, elbowR = -0.3;
-    let bob = 0;
-    let headPitch = 0;
-    let bodyRoll = 0;
-    switch (action) {
-      case 'stance': {
-        targetCrouch = lineman ? 0.42 : 0.25;
-        targetLean = lineman ? 0.95 : 0.45;
-        thighL = 0.6; thighR = lineman ? 0.2 : 0.5;
-        kneeL = 1.0; kneeR = 0.9;
-        if (lineman) { armRz = 1.9; elbowR = 0; armLz = 0.6; elbowL = -0.6; }
-        else { armLz = 0.5; armRz = 0.5; elbowL = -0.6; elbowR = -0.6; }
-        headPitch = -targetLean * 0.7;
-        break;
-      }
-      case 'run':
-      case 'backpedal':
-      case 'idle': {
-        const amp = 0.95 * run;
-        const sgn = action === 'backpedal' ? -1 : 1;
-        thighL = Math.sin(phase) * amp * sgn;
-        thighR = -Math.sin(phase) * amp * sgn;
-        kneeL = 0.1 + Math.max(0, -Math.cos(phase)) * 1.4 * run;
-        kneeR = 0.1 + Math.max(0, Math.cos(phase)) * 1.4 * run;
-        armLz = -Math.sin(phase) * 0.9 * run + 0.1;
-        armRz = Math.sin(phase) * 0.9 * run + 0.1;
-        elbowL = -0.4 - run * 0.9;
-        elbowR = -0.4 - run * 0.9;
-        if (hasBall) { armRz = 0.5; elbowR = -1.9; armRx = 0.25; }
-        targetLean = action === 'backpedal' ? -0.05 : run * 0.32;
-        targetCrouch = action === 'backpedal' ? 0.15 : 0;
-        bob = Math.abs(Math.sin(phase)) * 0.06 * run;
-        if (action === 'idle') {
-          bob = Math.sin(actionTime * 2) * 0.01;
-          if (lineman) { targetCrouch = 0.12; targetLean = 0.2; }
-        }
-        headPitch = -targetLean * 0.6;
-        break;
-      }
-      case 'block': {
-        targetLean = 0.55;
-        targetCrouch = 0.2;
-        thighL = Math.sin(actionTime * 9) * 0.35 + 0.3;
-        thighR = -Math.sin(actionTime * 9) * 0.35 + 0.3;
-        kneeL = 0.7; kneeR = 0.7;
-        armLz = 1.45; armRz = 1.45; elbowL = -0.2; elbowR = -0.2;
-        armLx = 0.25; armRx = -0.25;
-        headPitch = -0.3;
-        break;
-      }
-      case 'throw': {
-        const t = Math.min(1, actionTime / 0.45);
-        armRz = t < 0.4 ? -1.2 * (t / 0.4) - 0.4 : -1.6 + (t - 0.4) * 5.5;
-        armRx = -1.2;
-        elbowR = t < 0.5 ? -1.6 : -0.3;
-        armLz = 1.0 - t; elbowL = -1.2;
-        targetLean = 0.1 + t * 0.25;
-        thighL = 0.35; thighR = -0.25; kneeL = 0.3; kneeR = 0.2;
-        break;
-      }
-      case 'catch': {
-        const t = Math.min(1, actionTime / 0.3);
-        armLz = 2.6 * t; armRz = 2.6 * t; elbowL = -0.3; elbowR = -0.3;
-        armLx = 0.2; armRx = -0.2;
-        thighL = Math.sin(phase) * 0.6 * run; thighR = -thighL;
-        kneeL = 0.4; kneeR = 0.4;
-        bob = actionTime < 0.4 ? Math.sin((actionTime / 0.4) * Math.PI) * 0.25 : 0;
-        headPitch = 0.3;
-        break;
-      }
-      case 'kick': {
-        const t = Math.min(1, actionTime / 0.5);
-        thighR = -0.8 + t * 2.6;
-        kneeR = t < 0.4 ? 1.4 : 0.1;
-        armLz = 0.6; armRz = -0.6; armLx = 0.8; armRx = -0.8;
-        targetLean = -0.15;
-        break;
-      }
-      case 'juke': {
-        bodyRoll = Math.sin(Math.min(1, actionTime / 0.4) * Math.PI) * 0.5;
-        thighL = 0.6; thighR = -0.4; kneeL = 0.9; kneeR = 0.5;
-        armLz = 0.8; armRz = 0.5; elbowR = -1.8;
-        targetLean = 0.35;
-        targetCrouch = 0.12;
-        break;
-      }
-      case 'handoff': {
-        armLz = 1.1; armRz = 1.1; elbowL = -0.6; elbowR = -0.6;
-        targetLean = 0.2;
-        break;
-      }
-      case 'dive':
-      case 'down': {
-        down = 1;
-        armLz = 2.8; armRz = 2.8; elbowL = -0.2; elbowR = -0.2;
-        thighL = -0.2; thighR = 0.1; kneeL = 0.3; kneeR = 0.6;
-        break;
-      }
-      case 'celebrate': {
-        const t = actionTime * 6;
-        bob = Math.max(0, Math.sin(t)) * 0.35;
-        armLz = 2.9 + Math.sin(t) * 0.2; armRz = 2.9 - Math.sin(t) * 0.2;
-        armLx = 0.4; armRx = -0.4; elbowL = -0.2; elbowR = -0.2;
-        thighL = 0.2; thighR = -0.1; kneeL = Math.max(0, Math.sin(t)) * 0.8; kneeR = kneeL;
-        headPitch = 0.35;
-        break;
-      }
-      case 'kneel': {
-        targetCrouch = 0.45;
-        thighL = 1.4; kneeL = 1.5; thighR = -0.2; kneeR = 2.3;
-        armLz = 0.6; armRz = 0.6; elbowR = -1.6;
-        break;
-      }
-      case 'hold': {
-        targetCrouch = 0.5;
-        thighL = 1.2; kneeL = 2.0; thighR = 0.6; kneeR = 2.3;
-        armLz = 1.2; armRz = 1.2; elbowL = -0.4;
-        break;
-      }
-    }
+    const p = computePose(action, actionTime, speed, stride, lineman, hasBall);
+    const { thighL, thighR, kneeL, kneeR, armLz, armRz, armLx, armRx, elbowL, elbowR, bob, headPitch } = p;
+    const bodyRoll = p.roll;
+    const targetLean = p.lean;
+    const targetCrouch = p.crouch;
+    const down = p.down;
     this.lean += (targetLean - this.lean) * k;
     this.crouch += (targetCrouch - this.crouch) * k;
     this.downBlend += (down - this.downBlend) * Math.min(1, dt * (down ? 9 : 4));
@@ -434,7 +464,8 @@ export class PlayerBatcher {
     for (const b of this.batches.values()) b.count = 0;
   }
 
-  add(view: PlayerView): void {
+  add(view: { root: THREE.Object3D; anchors: THREE.Object3D[] }): void {
+    if (!view.anchors.length) return;
     if (!view.root.visible) return;
     view.root.updateMatrixWorld(true);
     for (const a of view.anchors) {
