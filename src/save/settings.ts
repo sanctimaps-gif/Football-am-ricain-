@@ -19,13 +19,15 @@ export interface Settings {
   /** Commandes simplifiées (un bouton contextuel, gestes, IA de déplacement). */
   simpleControls: boolean;
   volumes: Volumes;
+  /** Version des réglages (2 : qualité haute adaptative par défaut). */
+  version?: number;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   language: 'fr',
   quarterMinutes: 3,
   difficulty: 'normal',
-  quality: 'medium',
+  quality: 'high',
   targetFps: 60,
   camera: 'behind',
   autoSwitch: true,
@@ -37,6 +39,7 @@ export const DEFAULT_SETTINGS: Settings = {
   playClock: true,
   simpleControls: false,
   volumes: { master: 0.8, music: 0.5, sfx: 0.8, crowd: 0.6 },
+  version: 2,
 };
 
 /** Valide et complète des réglages chargés (valeurs manquantes ou invalides → défaut). */
@@ -45,7 +48,12 @@ export function sanitizeSettings(raw: unknown): Settings {
   if (!['fr', 'en'].includes(s.language)) s.language = 'fr';
   if (![1, 3, 5, 15].includes(s.quarterMinutes)) s.quarterMinutes = 3;
   if (!['easy', 'normal', 'hard'].includes(s.difficulty)) s.difficulty = 'normal';
-  if (!['low', 'medium', 'high'].includes(s.quality)) s.quality = 'medium';
+  if (!['low', 'medium', 'high'].includes(s.quality)) s.quality = 'high';
+  // anciens réglages : « moyenne » était le défaut, la qualité haute est désormais adaptative
+  if (((raw as Partial<Settings> | null)?.version ?? 1) < 2) {
+    if (s.quality === 'medium') s.quality = 'high';
+    s.version = 2;
+  }
   if (![30, 60].includes(s.targetFps)) s.targetFps = 60;
   if (!['behind', 'broadcast'].includes(s.camera)) s.camera = 'behind';
   s.sensitivity = typeof s.sensitivity === 'number' && isFinite(s.sensitivity) ? Math.min(1.5, Math.max(0.5, s.sensitivity)) : 1;

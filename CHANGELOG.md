@@ -8,7 +8,13 @@
   derrière, 6 tons de peau, silhouette selon la taille, animation procédurale (course, appui, lancer, plaquage, au sol).
 - Casque procédural verni attaché à la tête (bande, grille, protections d'oreilles) aux couleurs de l'équipe.
 
+- Qualité adaptative en moyenne et haute : si l'appareil n'atteint pas la cadence choisie, la résolution baisse
+  par paliers (jusqu'à ×0,8), puis le halo se coupe ; elle remonte quand l'appareil suit. Joueurs réalistes,
+  ombres et effets restent actifs.
+
 ### Modifié
+- Qualité haute par défaut (les anciens réglages « moyenne », qui était le défaut, passent en haute une fois).
+- Mesure des images par seconde en temps réel (elle était faussée sous 10 FPS).
 - Logos de marque et numéros d'origine retirés des textures du modèle.
 - Les joueurs en primitives restent utilisés en qualité basse ou si le modèle ne se charge pas.
 

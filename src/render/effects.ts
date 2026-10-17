@@ -103,6 +103,11 @@ export class PostFX {
     this.composer.setSize(w, h);
   }
 
+  /** Active ou coupe le halo (dernier recours de la qualité adaptative). */
+  setBloom(on: boolean): void {
+    if (this.bloom) this.bloom.enabled = on;
+  }
+
   render(): void {
     this.composer.render();
   }

@@ -39,6 +39,7 @@ export class SettingsScreen implements Screen {
         <div class="panel scroll grow">
           ${choice('q', t('settings.quality'), ['low', 'medium', 'high'], s.quality, (v) => t(`q.${v}`))}
           ${choice('fps', t('settings.fps'), [30, 60], s.targetFps, (v) => String(v))}
+          <p class="muted" style="font-size:11px;line-height:1.35;margin:-4px 0 8px">${t('settings.adaptive')}</p>
           ${slider('master', t('settings.master'), s.volumes.master)}
           ${slider('music', t('settings.music'), s.volumes.music)}
           ${slider('sfx', t('settings.sfx'), s.volumes.sfx)}

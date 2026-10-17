@@ -174,6 +174,7 @@ export const fr: Record<string, string> = {
   'settings.language': 'Langue',
   'settings.quality': 'Qualité graphique',
   'settings.fps': 'Images par seconde',
+  'settings.adaptive': 'Résolution adaptative : si l’appareil n’atteint pas la cadence choisie, la netteté baisse légèrement (puis le halo se coupe) ; joueurs réalistes, ombres et effets restent actifs.',
   'settings.camera': 'Caméra',
   'settings.camera.behind': 'Arrière',
   'settings.camera.broadcast': 'Télévision',

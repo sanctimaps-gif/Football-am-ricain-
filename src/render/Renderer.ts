@@ -60,10 +60,22 @@ export class GameRenderer {
   private tmpS = new THREE.Vector3(1, 1, 1);
   private tmpProj = new THREE.Vector3();
 
+  // qualité adaptative : la résolution baisse (puis le halo se coupe) si l'appareil n'atteint pas la cadence visée
+  private maxRatio = 1;
+  private minRatio = 1;
+  private ratio = 1;
+  private bloomOff = false;
+  private goodSeconds = 0;
+  private warmup = 3;
+  private size = { w: 1, h: 1 };
+
   constructor(canvas: HTMLCanvasElement, quality: Quality) {
     this.quality = quality;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: quality !== 'low', powerPreference: 'high-performance' });
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, quality === 'high' ? 2 : quality === 'medium' ? 1.5 : 1));
+    this.maxRatio = Math.min(window.devicePixelRatio || 1, quality === 'high' ? 2 : quality === 'medium' ? 1.5 : 1);
+    this.minRatio = Math.min(this.maxRatio, quality === 'low' ? 1 : 0.8);
+    this.ratio = this.maxRatio;
+    this.renderer.setPixelRatio(this.ratio);
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
     this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1.0;
@@ -170,6 +182,8 @@ export class GameRenderer {
   }
 
   resize(w: number, h: number): void {
+    this.size = { w, h };
+    this.renderer.setPixelRatio(this.ratio);
     this.renderer.setSize(w, h, false);
     this.post?.setSize(w, h, this.renderer.getPixelRatio());
     this.camera.aspect = w / h;
@@ -559,6 +573,44 @@ export class GameRenderer {
   private draw(): void {
     if (this.post) this.post.render();
     else this.renderer.render(this.scene, this.camera);
+  }
+
+  /**
+   * Appelé chaque seconde avec la cadence mesurée. Trop lent : résolution −12 % jusqu'au plancher, puis halo coupé.
+   * Confortable 3 s de suite : on remonte dans l'ordre inverse. Les joueurs réalistes, ombres et effets restent actifs.
+   */
+  adapt(fps: number, target: number): void {
+    if (this.quality === 'low') return;
+    if (this.warmup > 0) {
+      this.warmup--;
+      return;
+    }
+    let ratio = this.ratio;
+    if (fps < target * 0.88) {
+      this.goodSeconds = 0;
+      if (ratio > this.minRatio + 0.01) ratio = Math.max(this.minRatio, ratio * 0.88);
+      else if (!this.bloomOff) {
+        this.bloomOff = true;
+        this.post?.setBloom(false);
+      }
+    } else if (fps >= target * 0.96) {
+      if (++this.goodSeconds < 3) return;
+      this.goodSeconds = 0;
+      if (this.bloomOff) {
+        this.bloomOff = false;
+        this.post?.setBloom(true);
+      } else if (ratio < this.maxRatio - 0.01) ratio = Math.min(this.maxRatio, ratio * 1.08);
+    } else this.goodSeconds = 0;
+    if (ratio !== this.ratio) {
+      this.ratio = ratio;
+      this.warmup = 1;
+      this.resize(this.size.w, this.size.h);
+    }
+  }
+
+  /** Résolution de rendu actuelle (diagnostic). */
+  get pixelRatio(): number {
+    return this.ratio;
   }
 
   /** Nombre d'appels de rendu de la dernière image (diagnostic). */

@@ -16,5 +16,5 @@ export const en: Record<string, string> = {
   'tag.FIRST_DOWN': 'First down', 'tag.INCOMPLETE': 'Incomplete pass', 'tag.TURNOVER_ON_DOWNS': 'Turnover on downs',
   'pause.title': 'Paused', 'pause.resume': 'Resume', 'pause.quit': 'Quit match',
   'result.win': 'VICTORY', 'result.loss': 'DEFEAT', 'result.tie': 'TIE', 'result.rematch': 'Rematch', 'result.menu': 'Main menu',
-  'settings.title': 'Settings', 'settings.language': 'Language',
+  'settings.title': 'Settings', 'settings.adaptive': 'Adaptive resolution: if the device misses the chosen frame rate, sharpness drops slightly (then bloom turns off); realistic players, shadows and effects stay on.', 'settings.language': 'Language',
 };

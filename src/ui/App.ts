@@ -34,6 +34,7 @@ export class App {
   private fpsEl: HTMLElement;
   private frames = 0;
   private fpsTime = 0;
+  private skipped = 0;
   showFps = new URLSearchParams(location.search).has('fps');
   /** Exposé pour les tests automatisés. */
   measuredFps = 0;
@@ -127,20 +128,27 @@ export class App {
 
   private frame(now: number): void {
     requestAnimationFrame((t) => this.frame(t));
-    const dtRaw = Math.min(0.1, (now - this.last) / 1000);
+    const elapsed = Math.max(0, (now - this.last) / 1000);
+    const dtRaw = Math.min(0.1, elapsed);
     this.last = now;
     // limitation à 30 FPS si demandé
     if (this.settings.targetFps === 30) {
       this.acc += dtRaw;
-      if (this.acc < 1 / 31) return;
+      if (this.acc < 1 / 31) {
+        this.skipped += elapsed;
+        return;
+      }
     } else this.acc = dtRaw;
     const dt = Math.min(0.1, this.acc);
     this.acc = 0;
     this.frames++;
-    this.fpsTime += dt;
+    // cadence mesurée en temps réel (dt est plafonné pour la simulation, pas pour la mesure)
+    this.fpsTime += this.settings.targetFps === 30 ? elapsed + this.skipped : elapsed;
+    this.skipped = 0;
     if (this.fpsTime >= 1) {
       this.measuredFps = Math.round(this.frames / this.fpsTime);
-      if (this.showFps) this.fpsEl.textContent = `${this.measuredFps} FPS`;
+      if (this.showFps) this.fpsEl.textContent = `${this.measuredFps} FPS · ×${this.renderer.pixelRatio.toFixed(2)}`;
+      if (!document.hidden) this.renderer.adapt(this.measuredFps, this.settings.targetFps);
       this.frames = 0;
       this.fpsTime = 0;
     }
