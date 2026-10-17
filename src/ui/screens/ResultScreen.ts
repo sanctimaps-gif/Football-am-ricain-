@@ -89,7 +89,7 @@ export class ResultScreen implements Screen {
         this.render();
       } else if (act === 'continue' || act === 'menu') this.cfg.onExit(this.mc, true);
       else if (act === 'rematch') {
-        import('./MatchScreen').then(({ MatchScreen }) => this.app.go(new MatchScreen(this.app, this.cfg)));
+        import('./MatchScreen').then(({ launchMatch }) => launchMatch(this.app, this.cfg));
       }
     });
   }

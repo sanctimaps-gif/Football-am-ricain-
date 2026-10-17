@@ -76,6 +76,7 @@ export function chooseOffensivePlay(
   rng: Rng,
   plan: GamePlan = DEFAULT_GAMEPLAN,
   recent: string[] = [],
+  allowed?: Set<string>,
 ): OffensivePlay {
   const byId = (id: string) => OFFENSIVE_PLAYS.find((p) => p.id === id)!;
   if (shouldKneel(s, rules)) return byId('kneel');
@@ -139,7 +140,22 @@ export function chooseOffensivePlay(
       add('readOption', 1.2);
     }
   }
-  return weighted(pool, rng);
+  return pickAllowed(pool, rng, allowed, OFFENSIVE_PLAYS.filter((p) => p.category !== 'special'));
+}
+
+/**
+ * Tirage pondéré limité aux tactiques autorisées (débloquées par l'entraîneur). Si aucune action du lot n'est
+ * autorisée, on prend une action autorisée de la même famille, sinon n'importe laquelle.
+ */
+function pickAllowed<T extends { id: string; category?: string }>(pool: { p: T; w: number }[], rng: Rng, allowed: Set<string> | undefined, all: T[]): T {
+  if (!allowed) return weighted(pool, rng);
+  const ok = pool.filter((x) => allowed.has(x.p.id));
+  if (ok.length) return weighted(ok, rng);
+  const cat = pool[0]?.p.category;
+  const same = all.filter((p) => allowed.has(p.id) && (cat === undefined || p.category === cat));
+  const any = same.length ? same : all.filter((p) => allowed.has(p.id));
+  if (!any.length) return weighted(pool, rng);
+  return any[rng.int(0, any.length - 1)];
 }
 
 function weighted<T>(pool: { p: T; w: number }[], rng: Rng): T {
@@ -170,6 +186,7 @@ export function chooseDefensivePlay(
   scouting: ScoutingReport,
   plan: GamePlan = DEFAULT_GAMEPLAN,
   recent: string[] = [],
+  allowed?: Set<string>,
 ): DefensivePlay {
   const byId = (id: string) => DEFENSIVE_PLAYS.find((p) => p.id === id)!;
   const side = other(s.possession);
@@ -184,12 +201,12 @@ export function chooseDefensivePlay(
     add('goalLineD', 4);
     add('43runStop', 2);
     add('43cover1', 1);
-    return weighted(pool, rng);
+    return pickAllowed(pool, rng, allowed, DEFENSIVE_PLAYS);
   }
   if (lateGame && diff > 0 && s.toGo >= 10) {
     add('dimeDeep', 4);
     add('nickelQuarters', 2);
-    return weighted(pool, rng);
+    return pickAllowed(pool, rng, allowed, DEFENSIVE_PLAYS);
   }
   const passLikely = (s.down === 3 && s.toGo >= 6) || (s.down === 2 && s.toGo >= 9) || spread;
   const runLikely = heavy || s.toGo <= 2;
@@ -214,7 +231,7 @@ export function chooseDefensivePlay(
     add('43runStop', 0.8 + (1 - passTendency) * 1.2);
     add('nickelBlitz', blitzW * 0.5);
   }
-  return weighted(pool, rng);
+  return pickAllowed(pool, rng, allowed, DEFENSIVE_PLAYS);
 }
 
 /** L'IA appelle-t-elle un temps mort (fin de mi-temps / de match) ? */

@@ -14,7 +14,7 @@
 ## Flux d'une action
 
 ```
-UI (PlaySelection) ──selectOffense/selectDefense──▶ MatchController
+UI (appel de l'entraîneur, ou adjoint / IA) ──selectOffense/selectDefense──▶ MatchController  (aucun joueur dirigé par l'utilisateur : snap automatique)
                                                    │ buildSim(): personnel (profondeur de poste), formation, alignement défensif
                                                    ▼
 PreSnap ── snap() ──▶ PlaySim.snap()  ── step(1/60, SimInput) × N ──▶ PlaySim.result (PlayResult : faits physiques)
@@ -42,10 +42,10 @@ PlayReview → prepareNext() → PlaySelection | PreSnap (kickoff) | QuarterBrea
 | `match/` | `MatchController` (machine à états), `simulateMatch` (headless), `quickSim` (statistique, mêmes règles) |
 | `league/` | `League` (modèle sérialisable), calendrier, classement, playoffs, intersaison, draft, marché, finances, carrière |
 | `render/` | `GameRenderer` (scène, lumière unique ombrée, caméra), `stadium.ts`, `fieldTexture.ts`, `playerModel.ts` |
-| `input/` | `TouchControls` (joystick + boutons + clavier) |
+| `coach/` | `academy.ts` (leçons, déblocage, démonstrations au ralenti déterministes), `scouting.ts` (rapport sur l'adversaire) |
 | `audio/` | `AudioEngine` (Web Audio, synthèse) |
 | `save/` | `SaveManager` (enveloppes versionnées + migrations), `settings.ts` (validation), `storage.ts` |
-| `ui/` | `App` (boucle, navigation), écrans, HUD, hub de ligue, créateurs, tutoriel |
+| `ui/` | `App` (boucle, navigation), menu en catégories, match vu comme à la TV (panneau d'appel, adjoint), académie, avant-match, hub de ligue, créateurs |
 | `i18n/` | dictionnaires FR (complet) / EN (partiel, repli FR) |
 
 ## Sauvegardes
@@ -76,7 +76,6 @@ EditMode. Correspondance prévue des autres couches :
 |---|---|
 | `sim/PlaySim.ts` | `MonoBehaviour` `PlaySimulation` avec `FixedUpdate` à 60 Hz, mêmes structures de données |
 | `render/*` | prefabs URP + Animator (modèles riggés), Cinemachine pour la caméra |
-| `input/TouchControls.ts` | Input System (On-Screen Stick / Buttons) |
 | `ui/*` | UI Toolkit ou uGUI avec `Safe Area` |
 | `save/*` | `JsonUtility`/Newtonsoft + `Application.persistentDataPath` |
 | `data/*` | `ScriptableObject` (équipes, playbook) |

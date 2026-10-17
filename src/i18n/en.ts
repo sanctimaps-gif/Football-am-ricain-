@@ -8,7 +8,7 @@ export const en: Record<string, string> = {
   'menu.settings': 'Settings', 'menu.saves': 'Saves', 'menu.continue': 'Continue', 'menu.tapToStart': 'Tap to start',
   'common.back': 'Back', 'common.next': 'Next', 'common.start': 'Start', 'common.confirm': 'Confirm', 'common.cancel': 'Cancel',
   'common.home': 'Home', 'common.away': 'Away', 'common.yes': 'Yes', 'common.no': 'No', 'common.close': 'Close', 'common.save': 'Save',
-  'setup.title': 'Match setup', 'setup.control': 'I control', 'setup.difficulty': 'Difficulty', 'setup.quarter': 'Quarter length',
+  'setup.title': 'Match setup', 'setup.control': 'Team I coach', 'setup.difficulty': 'Difficulty', 'setup.quarter': 'Quarter length',
   'diff.easy': 'Easy', 'diff.normal': 'Normal', 'diff.hard': 'Hard',
   'select.offense': 'Offense — pick a play', 'select.defense': 'Defense — pick a coverage',
   'btn.pass': 'PASS', 'btn.target': 'TARGET', 'btn.juke': 'JUKE', 'btn.dive': 'DIVE', 'btn.switch': 'SWITCH', 'btn.tackle': 'TACKLE', 'btn.intercept': 'SWAT', 'btn.fairCatch': 'FAIR', 'btn.kneel': 'KNEEL',

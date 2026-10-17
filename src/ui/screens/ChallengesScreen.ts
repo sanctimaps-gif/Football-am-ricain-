@@ -7,7 +7,7 @@ import { showMessage } from '../dialog';
 import { el, esc, onAction } from '../dom';
 import { logoSvg } from '../logo';
 import { MainMenu } from './MainMenu';
-import { MatchScreen } from './MatchScreen';
+import { launchMatch } from './MatchScreen';
 
 const stars = (n: number, max = 3) => '★'.repeat(n) + '☆'.repeat(Math.max(0, max - n));
 
@@ -68,7 +68,7 @@ export class ChallengesScreen implements Screen {
   private start(c: Challenge): void {
     const app = this.app;
     const difficulty = app.settings.difficulty;
-    app.go(new MatchScreen(app, {
+    launchMatch(app, {
       home: this.team(c.home, c.group), away: this.team(c.away, c.group), userSide: c.userSide, context: 'challenge',
       quarterMinutes: 15, difficulty, title: `${c.icon} ${c.title}`,
       setup: (s) => applyChallenge(c, s),
@@ -89,6 +89,6 @@ export class ChallengesScreen implements Screen {
           void showMessage(`Défi échoué (${displayName(mc.teams[0])} ${mc.state.score[0]} – ${mc.state.score[1]} ${displayName(mc.teams[1])}). Réessayez !`);
         }
       },
-    }));
+    });
   }
 }

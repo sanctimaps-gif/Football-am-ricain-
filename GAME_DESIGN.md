@@ -1,12 +1,14 @@
-# Game design — Gridiron Dynasty
+# Game design — NFL League
 
 Ce document décrit le jeu **tel qu'il est implémenté** (et signale ce qui ne l'est pas).
 
 ## 1. Expérience visée
 
-Un match de football américain en 3D, lisible sur téléphone en paysage : on choisit une action dans un playbook
-illustré, puis on joue l'action en contrôlant directement un joueur (QB, porteur, receveur, défenseur), l'IA gérant
-les 21 autres. Les modes de gestion (saison, coach, franchise, carrière de joueur) réutilisent exactement le même moteur.
+L'utilisateur est **entraîneur et investisseur** de son club (à la manière d'un jeu de management) : il ne dirige
+aucun joueur sur le terrain. Le match se regarde comme à la télévision (caméra latérale, bandeau de commentaire,
+tableau de score) ; **avant chaque action**, l'entraîneur appelle une tactique — uniquement parmi celles qu'il a apprises
+à l'académie — et peut donner une consigne (receveur prioritaire). Les 22 joueurs sont dirigés par l'IA.
+Avant chaque match, l'entraîneur adjoint remet un **rapport sur l'adversaire**.
 
 ## 2. Règlement (`src/rules/config.ts`, `src/rules/engine.ts`)
 
@@ -62,12 +64,27 @@ après temps mort, conversion défensive à 2 points sur retour (le tag existe, 
 * **Collisions** : séparation des corps (pas de traversée), contraintes d'engagement.
 * Garde-fou : une action ne peut pas dépasser 28 s de jeu.
 
-## 5. Commandes tactiles (`src/input/TouchControls.ts`)
+## 5. Rôle d'entraîneur (`src/coach/`, `src/ui/screens/MatchScreen.ts`)
 
-Joystick dynamique sur la moitié gauche, boutons contextuels à droite (inversables pour les gauchers), bulles de receveurs
-projetées au-dessus des joueurs, anti-double appui (150 ms), vibration légère, sensibilité réglable. Assistance optionnelle
-à la visée (sinon le joystick décale le point visé de 3 yards) et au changement de joueur. Toutes les commandes visibles
-déclenchent une action réelle.
+* **Académie tactique** (`coach/academy.ts`, `ui/screens/AcademyScreen.ts`) : une leçon par tactique (18 en attaque, 11 en
+  défense). Chaque leçon = un court texte (principe, quand l'utiliser, point faible, points à regarder), l'**action rejouée
+  au ralenti** (×0,15 à ×1) avec les joueurs clés étiquetés et les étapes affichées au fil de l'action, puis une
+  **question de compréhension** (3 réponses). Une bonne réponse débloque la tactique (profil sauvegardé).
+  Les démonstrations sont déterministes (pas fixes de 1/60 s) et choisies pour illustrer la tactique (réussite de
+  l'attaque pour une leçon d'attaque, de la défense pour une leçon de défense).
+* **4 tutoriels de base obligatoires** avant le premier match : Inside Zone, Slants, 4-3 Cover 3, 4-3 Stop course.
+  Les autres leçons s'ouvrent ensuite. Les actions spéciales (punt, field goal, genou) restent toujours disponibles.
+* **Appel avant chaque action** : panneau d'appel automatique (situation, suggestion de l'adjoint « Suivre », familles
+  Passes/Courses/Spéciales, cartes avec schéma et usage, consigne « receveur prioritaire » pour les passes, temps morts,
+  choix de conversion). Le snap est automatique ; l'appel adverse reste secret.
+* **Entraîneur adjoint automatique** (option) : il appelle à votre place, toujours parmi vos tactiques apprises.
+* **Panneaux** (barre de droite) : Appel, Aperçu (possession, anneaux de stats, mini-carte des 22 joueurs, remarques de
+  l'adjoint selon le déroulement), Plan de jeu (course/passe, prise de risque, passes longues), Stats, Notes des joueurs.
+* Vitesse ×1/×2/×4 pendant les actions ; la difficulté porte sur l'entraîneur adverse (facile : appels moins adaptés ;
+  difficile : il lit souvent vos intentions). Les joueurs des deux équipes ont les mêmes réflexes.
+* **Avant-match** (`coach/scouting.ts`, `ui/screens/PreMatchScreen.ts`) : entraîneur adverse, forme récente (V/N/D),
+  style de jeu attendu, joueurs clés, forces et faiblesses, comparaison des 6 unités, conseils tactiques reliés aux leçons
+  (bouton « Apprendre » si la tactique n'est pas encore connue), compositions ; « Jouer le match » ou « Jeu rapide ».
 
 ## 6. Playbook et IA
 
@@ -113,7 +130,6 @@ Les noms de joueurs réels, même légèrement modifiés, ne sont **pas** utilis
 | Mode | Ce qui progresse | Contenu implémenté |
 |---|---|---|
 | Carrière de club | le club, son effectif, ses résultats sur plusieurs saisons | **deux départs au choix** : reprendre un club existant (style FL 26 : départ en 3e division avec seulement **3 joueurs** gardés) ou **créer son club** (style Rugby Nations : pays d'origine = ligue, nom, abréviation, logo, couleurs, **éditeur de maillot** pièce par pièce, effectif généré) ; pyramide de 3 divisions de 10 clubs : dans **chaque division les 4 premiers jouent des playoffs (demies + finale) et seul le vainqueur monte**, le dernier descend (D1 : playoffs du titre) ; **tournoi intersaison** à 4 contre des clubs d'autres régions du monde (primes, trophée) ; onglet Maillot pour modifier la tenue à tout moment ; divisions inférieures générées (« Ville + couleur ») ; revenus selon la division ; **marché des transferts** : recherche par poste, achat aux clubs de la division ou à des clubs étrangers contre une indemnité, vente avec offres des clubs ; agents libres, composition (profondeur de poste), plan de jeu, draft, contrats |
-| Carrière de joueur | le parcours individuel | création, draft, hiérarchie, entraînement, objectifs, points de compétence, récompenses ; joueur verrouillé pendant les matchs |
 | Championnats | les résultats dans une ligue | choix parmi les 7 ligues (ou **ligue personnalisée** de 6 à 20 clubs de n'importe quelle ligue), calendrier, classement par conférence, playoffs, saisons suivantes |
 | Coupes & tournois | la progression dans une compétition | coupe nationale de chaque ligue (élimination directe), Coupe des Champions (16 meilleurs clubs du monde, quotas par ligue), Coupe d'Europe des clubs, Coupe d'Amérique du Nord, Copa Latina, Coupe d'Afrique, Coupe d'Asie-Pacifique, Coupe des Nations (16 sélections), Ligue des Nations européenne, Gold Bowl ; phases de groupes (tirage par chapeaux, 2 premiers qualifiés) puis tableau (A1–B2, B1–A2…) |
 | Défis & événements | la capacité à renverser une situation | 8 « moments » (drive de la victoire, goal-line stand, field goal de la gagne, remontée, sans temps mort, fermer le match, finale des Nations, petit poucet) + **événement de la semaine** tiré au sort (le même pour tous pendant 7 jours) ; quarts de 15 min, chrono réel ; 1 à 3 étoiles selon la difficulté, sauvegardées |
@@ -121,12 +137,17 @@ Les noms de joueurs réels, même légèrement modifiés, ne sont **pas** utilis
 | Carrière de coach / Franchise | — | modes d'origine conservés (objectifs de la direction, création de club, échanges, installations) ; onglet Maillot (éditeur détaillé) en franchise |
 | Ultimate Team (hors ligne) | l'effectif de cartes et le niveau du joueur | cartes de joueurs (Bronze → Légende, note GÉN, **cartes doubles** jouables à 2 postes + synergie), composition par emplacement, **22 traits** améliorables (points d'entraînement), **évolution EVO** (2 cartes sacrifiées, 3 niveaux), vente rapide ; **pièces, gemmes et points d'entraînement gagnés uniquement en jouant** (aucun achat réel, probabilités des packs affichées) ; boutique de packs ; **playbook à budget** (coût par action, budget qui monte avec le niveau, seules les actions choisies sont proposées en match) ; **Défis du jour** (3 par jour, Rookie/Pro/All-Pro) ; **Journeys** (carte de 30 étapes) ; **Arena** (drive chronométré, classement hebdomadaire contre des rivaux IA) ; **VS** (match éclair de 4 min contre un rival IA, cote) ; **Field Pass gratuit** (30 niveaux) ; **événement du mois** (calendrier de la saison : coup d'envoi, playoffs, draft…) avec carte d'événement ; identité et maillot de l'équipe |
 | Équipes féminines | — | 12 sélections féminines (joueuses générées, silhouette et queue de cheval sous le casque), Coupe du monde féminine, défi dédié, disponibles en match rapide |
-| Mode spectateur, tutoriel | — | inchangés |
+| Mode spectateur | — | match entre deux équipes au hasard |
 | Multijoueur en ligne | — | **Non implémenté** (aucun bouton) |
 
 Non implémenté (exige un serveur) : Leagues avec chat, VS en temps réel, classements communautaires, énergie (refusée par choix). Pas de licences officielles.
 
-**Commandes simplifiées** (option) : un seul bouton contextuel (HIKE, PASSE, PLAQUER, FEINTE, SAUTER, FRAPPER), glisser le doigt = feinte, toucher une bulle de receveur = passe, l'IA déplace le joueur contrôlé quand le joystick n'est pas utilisé (sauf le QB dans la poche).
+**Supprimé en 0.6** : contrôle des joueurs (joystick, boutons, commandes simplifiées), carrière de joueur (les anciennes
+sauvegardes sont converties en championnat), ancien tutoriel des commandes.
+
+**Menu** : barre latérale de catégories (Accueil, Club, Compétitions, National, Académie, Défis, Femmes, UT) et grandes
+cartes par mode ; installations (entraînement, médical, stade) améliorables dans tous les modes de gestion (rôle
+d'investisseur).
 
 Les matchs non joués par l'utilisateur sont simulés par `quickSim.ts` : action par action avec **le même moteur de règles**
 (downs, score, chrono, pénalités, prolongation) ; seules les issues des actions sont tirées statistiquement des notes.

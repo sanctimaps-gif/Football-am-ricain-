@@ -4,7 +4,7 @@ import type { Settings } from '../../save/settings';
 import type { App, Screen } from '../App';
 import { el, onAction } from '../dom';
 
-type BoolKey = 'autoSwitch' | 'aimAssist' | 'userKicks' | 'leftHanded' | 'penalties' | 'playClock' | 'simpleControls';
+type BoolKey = 'penalties' | 'autoCoach';
 
 export class SettingsScreen implements Screen {
   readonly el: HTMLElement;
@@ -26,15 +26,8 @@ export class SettingsScreen implements Screen {
           ${choice('lang', t('settings.language'), ['fr', 'en'], s.language, (v) => (v === 'fr' ? 'Français' : 'English'))}
           ${choice('qm', t('setup.quarter'), [1, 3, 5, 15], s.quarterMinutes, (v) => t('setup.minutes', { n: v }))}
           ${choice('diff', t('setup.difficulty'), ['easy', 'normal', 'hard'], s.difficulty, (v) => t(`diff.${v}`))}
-          ${choice('cam', t('settings.camera'), ['behind', 'broadcast'], s.camera, (v) => t(`settings.camera.${v}`))}
-          ${toggle('autoSwitch', t('settings.autoSwitch'))}
-          ${toggle('aimAssist', t('settings.aimAssist'))}
-          ${toggle('userKicks', t('settings.userKicks'))}
-          ${toggle('leftHanded', t('settings.leftHanded'))}
           ${toggle('penalties', t('settings.penalties'))}
-          ${toggle('playClock', t('settings.playClock'))}
-          ${toggle('simpleControls', t('settings.simpleControls'))}
-          ${slider('sensitivity', t('settings.sensitivity'), s.sensitivity, 0.5, 1.5, 0.05)}
+          ${toggle('autoCoach', 'Entraîneur adjoint automatique (il appelle les actions à votre place)')}
         </div>
         <div class="panel scroll grow">
           ${choice('q', t('settings.quality'), ['low', 'medium', 'high'], s.quality, (v) => t(`q.${v}`))}
@@ -54,7 +47,6 @@ export class SettingsScreen implements Screen {
       if (k === 'lang') s.language = v as Settings['language'];
       if (k === 'qm') s.quarterMinutes = Number(v) as Settings['quarterMinutes'];
       if (k === 'diff') s.difficulty = v as Settings['difficulty'];
-      if (k === 'cam') s.camera = v as Settings['camera'];
       if (k === 'fps') s.targetFps = Number(v) as Settings['targetFps'];
       if (k === 'toggle') s[v as BoolKey] = !s[v as BoolKey];
       if (k === 'q' && s.quality !== v) {
@@ -69,8 +61,7 @@ export class SettingsScreen implements Screen {
       inp.addEventListener('input', () => {
         const key = (inp as HTMLInputElement).dataset.slider!;
         const val = Number((inp as HTMLInputElement).value);
-        if (key === 'sensitivity') s.sensitivity = val;
-        else s.volumes[key as keyof Settings['volumes']] = val;
+        s.volumes[key as keyof Settings['volumes']] = val;
         this.app.saveSettings();
       });
     });

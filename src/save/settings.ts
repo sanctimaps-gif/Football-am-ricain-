@@ -1,5 +1,5 @@
 import type { Volumes } from '../audio/AudioEngine';
-import type { CameraMode, Quality } from '../render/Renderer';
+import type { Quality } from '../render/Renderer';
 import type { Difficulty } from '../sim/types';
 
 export interface Settings {
@@ -8,16 +8,9 @@ export interface Settings {
   difficulty: Difficulty['id'];
   quality: Quality;
   targetFps: 30 | 60;
-  camera: CameraMode;
-  autoSwitch: boolean;
-  aimAssist: boolean;
-  userKicks: boolean;
-  sensitivity: number;
-  leftHanded: boolean;
   penalties: boolean;
-  playClock: boolean;
-  /** Commandes simplifiées (un bouton contextuel, gestes, IA de déplacement). */
-  simpleControls: boolean;
+  /** L'entraîneur adjoint appelle les actions à la place de l'utilisateur. */
+  autoCoach: boolean;
   volumes: Volumes;
   /** Version des réglages (2 : qualité haute adaptative par défaut). */
   version?: number;
@@ -29,15 +22,8 @@ export const DEFAULT_SETTINGS: Settings = {
   difficulty: 'normal',
   quality: 'high',
   targetFps: 60,
-  camera: 'behind',
-  autoSwitch: true,
-  aimAssist: true,
-  userKicks: true,
-  sensitivity: 1,
-  leftHanded: false,
   penalties: true,
-  playClock: true,
-  simpleControls: false,
+  autoCoach: false,
   volumes: { master: 0.8, music: 0.5, sfx: 0.8, crowd: 0.6 },
   version: 2,
 };
@@ -55,13 +41,14 @@ export function sanitizeSettings(raw: unknown): Settings {
     s.version = 2;
   }
   if (![30, 60].includes(s.targetFps)) s.targetFps = 60;
-  if (!['behind', 'broadcast'].includes(s.camera)) s.camera = 'behind';
-  s.sensitivity = typeof s.sensitivity === 'number' && isFinite(s.sensitivity) ? Math.min(1.5, Math.max(0.5, s.sensitivity)) : 1;
   const v = { ...DEFAULT_SETTINGS.volumes, ...(s.volumes ?? {}) };
   for (const k of Object.keys(v) as (keyof Volumes)[]) {
     v[k] = typeof v[k] === 'number' && isFinite(v[k]) ? Math.min(1, Math.max(0, v[k])) : DEFAULT_SETTINGS.volumes[k];
   }
   s.volumes = v;
-  for (const b of ['autoSwitch', 'aimAssist', 'userKicks', 'leftHanded', 'penalties', 'playClock', 'simpleControls'] as const) s[b] = !!s[b];
+  for (const b of ['penalties', 'autoCoach'] as const) s[b] = !!s[b];
+  // anciennes options de contrôle des joueurs (supprimées : l'utilisateur est entraîneur)
+  const legacy = s as unknown as Record<string, unknown>;
+  for (const k of ['camera', 'autoSwitch', 'aimAssist', 'userKicks', 'sensitivity', 'leftHanded', 'playClock', 'simpleControls']) delete legacy[k];
   return s;
 }

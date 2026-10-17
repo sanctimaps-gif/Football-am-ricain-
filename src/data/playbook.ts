@@ -194,7 +194,7 @@ export const OFFENSIVE_PLAYS: OffensivePlay[] = [
   {
     id: 'readOption', name: 'Option', category: 'run', subtype: 'option', formation: 'shotgun',
     assign: { QB: { kind: 'carry' }, RB: { kind: 'route', route: 'swing' }, X: { kind: 'block' }, Z: { kind: 'block' }, H: { kind: 'block' }, Y: { kind: 'block' } },
-    runAim: { down: 2, lat: 6 }, description: 'Le QB court vers l’extérieur et peut latéraliser au RB (bouton Passe).',
+    runAim: { down: 2, lat: 6 }, description: 'Le QB court vers l’extérieur et peut latéraliser au RB.',
   },
   {
     id: 'qbSneak', name: 'QB Sneak', category: 'run', subtype: 'sneak', formation: 'goalLine',

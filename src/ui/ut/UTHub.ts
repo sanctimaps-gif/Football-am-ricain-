@@ -18,7 +18,7 @@ import { el, esc, onAction } from '../dom';
 import { applyKitAction, KIT_PALETTE, kitEditorHtml, type KitPart } from '../KitDesigner';
 import { logoSvg } from '../logo';
 import { MainMenu } from '../screens/MainMenu';
-import { MatchScreen } from '../screens/MatchScreen';
+import { launchMatch } from '../screens/MatchScreen';
 
 type Tab = 'home' | 'team' | 'cards' | 'playbook' | 'store' | 'base' | 'journeys' | 'arena' | 'vs' | 'pass' | 'events' | 'kit';
 const TABS: [Tab, string][] = [
@@ -411,7 +411,7 @@ export class UTHub implements Screen {
       if (s.clock <= 120 && s.quarter === 4) st.twoMinuteWarned = [false, true];
     };
     const endCheck = s.goal === 'drive' ? (st: GameState) => st.possession !== 0 || st.nextKind === 'kickoff' : undefined;
-    app.go(new MatchScreen(app, {
+    launchMatch(app, {
       home, away, userSide: 0, context: 'challenge', quarterMinutes: kind === 'friendly' ? undefined : 15,
       title: `Ultimate Team · ${s.title}`, playbook: { off: [...ut.playbook.off], def: [...ut.playbook.def] }, setup, endCheck,
       onExit: (mc: MatchController | null, completed: boolean) => {
@@ -452,6 +452,6 @@ export class UTHub implements Screen {
         hub.render();
         void showMessage(msgs.join('\n'));
       },
-    }));
+    });
   }
 }

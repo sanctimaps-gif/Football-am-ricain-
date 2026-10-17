@@ -1,6 +1,6 @@
 /** Nom du jeu : modifiable en un seul endroit. */
-export const GAME_NAME = 'Gridiron Dynasty';
-export const GAME_VERSION = '0.1.0';
+export const GAME_NAME = 'NFL League';
+export const GAME_VERSION = '0.6.0';
 
 /** Dimensions du terrain en yards (repère du monde de simulation). */
 export const FIELD = {

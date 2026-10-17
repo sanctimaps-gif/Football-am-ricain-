@@ -1,9 +1,7 @@
 import { audio } from '../../audio/AudioEngine';
 import { teamOverall } from '../../data/generator';
 import { overall } from '../../data/ratings';
-import { ALL_POSITIONS, fullName, type Attributes, type Position } from '../../data/types';
-import { t } from '../../i18n';
-import { careerAwards, careerPlayer, depthRank, spendSkillPoint, train, updateCareerAfterGame, type TrainingFocus } from '../../league/career';
+import { ALL_POSITIONS, fullName, type Position } from '../../data/types';
 import { teamInfo, advanceWeek, simulateWeek, standings, teamById, userGame, userTeam, weekComplete, recordResult } from '../../league/league';
 import { capSpace, evaluateTrade, executeTrade, extendContract, facilityCost, payroll, releasePlayer, signFreeAgent, upgradeFacility } from '../../league/market';
 import { buyPlayer, saleOffer, searchPlayers, sellPlayer } from '../../league/transfers';
@@ -22,10 +20,10 @@ import type { App, Screen } from '../App';
 import { el, esc, onAction, ovrClass } from '../dom';
 import { logoSvg } from '../logo';
 import { MainMenu } from '../screens/MainMenu';
-import { MatchScreen } from '../screens/MatchScreen';
-import { ATTR_KEYS, money, playerCard, playerRow, teamLabel } from './common';
+import { PreMatchScreen } from '../screens/PreMatchScreen';
+import { money, playerCard, playerRow, teamLabel } from './common';
 
-type Tab = 'kit' | 'home' | 'schedule' | 'standings' | 'playoffs' | 'roster' | 'transfers' | 'market' | 'draft' | 'finance' | 'trade' | 'plan' | 'career' | 'history';
+type Tab = 'kit' | 'home' | 'schedule' | 'standings' | 'playoffs' | 'roster' | 'transfers' | 'market' | 'draft' | 'finance' | 'trade' | 'plan' | 'history';
 
 const MODE_TITLES: Record<League['mode'], string> = {
   season: 'Championnat', coach: 'Carrière de coach', franchise: 'Franchise', playerCareer: 'Carrière de joueur', club: 'Carrière de club', cup: 'Coupe',
@@ -46,6 +44,11 @@ export class LeagueHub implements Screen {
 
   constructor(private app: App, private l: League, private slot: number) {
     this.el = el('div', 'screen');
+    // ancienne « carrière de joueur » (contrôle d'un joueur sur le terrain) : convertie en championnat
+    if ((l.mode as string) === 'playerCareer') {
+      l.mode = 'season';
+      l.career = null;
+    }
     onAction(this.el, (a, target) => this.onAction(a, target));
     this.render();
   }
@@ -75,7 +78,6 @@ export class LeagueHub implements Screen {
     if (l.mode === 'club' || l.mode === 'franchise') tabs.push('kit');
     if (l.phase === 'draft' && (l.mode === 'coach' || l.mode === 'franchise' || l.mode === 'club')) tabs.push('draft');
     if (l.cup) return tabs;
-    if (l.mode === 'playerCareer') tabs.push('career');
     tabs.push('history');
     return tabs;
   }
@@ -85,7 +87,7 @@ export class LeagueHub implements Screen {
     if (l.cup && tb === 'standings') return 'Groupes';
     if (l.cup && tb === 'playoffs') return 'Phase finale';
     if (l.pyramid && tb === 'playoffs') return 'Playoffs';
-    return { home: 'Accueil', schedule: 'Calendrier', standings: 'Classement', playoffs: 'Playoffs', transfers: 'Transferts', kit: 'Maillot', roster: 'Effectif', market: 'Recrutement', draft: 'Draft', finance: 'Contrats & budget', trade: 'Échanges', plan: 'Plan de jeu', career: 'Ma carrière', history: 'Historique' }[tb];
+    return { home: 'Accueil', schedule: 'Calendrier', standings: 'Classement', playoffs: 'Playoffs', transfers: 'Transferts', kit: 'Maillot', roster: 'Effectif', market: 'Recrutement', draft: 'Draft', finance: 'Finances & installations', trade: 'Échanges', plan: 'Plan de jeu', history: 'Historique' }[tb];
   }
 
   render(): void {
@@ -110,7 +112,6 @@ export class LeagueHub implements Screen {
       case 'finance': body = this.financeTab(); break;
       case 'trade': body = this.tradeTab(); break;
       case 'plan': body = this.planTab(); break;
-      case 'career': body = this.careerTab(); break;
       case 'history': body = this.historyTab(); break;
     }
     this.el.style.setProperty('--team', team.colors.primary);
@@ -158,7 +159,7 @@ export class LeagueHub implements Screen {
       next = `<div class="panel col" style="align-items:center"><div>Draft en cours (choix ${l.draftPick + 1}/${l.draftOrder.length * l.draftRounds}).</div>${manage ? '<button class="btn primary" data-action="tab:draft">Aller à la draft</button>' : '<button class="btn primary" data-action="autoDraft">Terminer la draft et lancer la saison suivante</button>'}</div>`;
     }
     const coach = l.coach && l.mode !== 'club' ? `<div class="panel" style="margin-top:8px"><b>Direction</b> · Objectif : ${l.coach.objectives.wins} victoires${l.coach.objectives.playoffs ? ' + playoffs' : ''} · Confiance ${Math.round(l.coach.security)}/100 · Réputation ${Math.round(l.coach.reputation)}/100</div>` : '';
-    const career = (l.interseason ? this.interseasonPanel() : '') + (l.mode === 'playerCareer' ? this.careerSummary() : l.pyramid ? this.clubSummary() : '');
+    const career = (l.interseason ? this.interseasonPanel() : '') + (l.pyramid ? this.clubSummary() : '');
     return `<div class="row" style="align-items:stretch;gap:10px">
       <div class="col grow">${next}${coach}${career}</div>
       <div class="col" style="width:40%">${row && (!l.cup || l.cup.groups) ? `<div class="panel"><b>Bilan</b> : ${row.w}-${row.l}-${row.t} · PF ${row.pf} · PA ${row.pa} · ${row.streak || '—'}</div>` : ''}
@@ -183,15 +184,6 @@ export class LeagueHub implements Screen {
     const log = p.log.slice(-4).reverse().map((x) => `<div style="font-size:14px">S${x.season} · D${x.level} · ${x.rank}e ${x.moved === 'up' ? '⬆️ montée' : x.moved === 'down' ? '⬇️ relégation' : ''}</div>`).join('');
     return `<div class="panel" style="margin-top:8px"><div class="row" style="gap:6px;flex-wrap:wrap"><b>${DIVISIONS[p.level].name}</b>${ladder}</div>
       <div>🎯 ${esc(divisionObjective(p.level))}</div><div class="muted" style="font-size:14px">Classement actuel : ${rank}e / ${l.teams.length} · Trésorerie ${money(l.finances[l.userTeamId].cash)}</div>${log}</div>`;
-  }
-
-  private careerSummary(): string {
-    const l = this.l;
-    const p = careerPlayer(l);
-    if (!p || !l.career) return '';
-    const rank = depthRank(l);
-    return `<div class="panel" style="margin-top:8px"><b>${esc(fullName(p))}</b> · ${p.position} · GÉN ${overall(p)} · ${rank === 0 ? 'Titulaire' : `Remplaçant (n°${rank + 1})`} · ${l.career.skillPoints} point(s) à dépenser
-      <div class="muted" style="font-size:14px">${l.career.goals.map((g) => `${g.key} ${g.progress}/${g.target}`).join(' · ')}</div></div>`;
   }
 
   private scheduleTab(): string {
@@ -296,7 +288,7 @@ export class LeagueHub implements Screen {
     const l = this.l;
     const f = l.finances[l.userTeamId];
     const team = userTeam(l);
-    const fac = (k: 'training' | 'medical' | 'stadium', label: string, desc: string) => `<div class="setting"><label>${label} <span class="muted">(niv. ${f.facilities[k]}/5) — ${desc}</span></label>${f.facilities[k] < 5 ? `<button class="btn" data-action="upgrade:${k}" ${l.mode !== 'franchise' ? 'disabled' : ''}>Améliorer (${money(facilityCost(f.facilities[k]))})</button>` : '<span class="chip on">Max</span>'}</div>`;
+    const fac = (k: 'training' | 'medical' | 'stadium', label: string, desc: string) => `<div class="setting"><label>${label} <span class="muted">(niv. ${f.facilities[k]}/5) — ${desc}</span></label>${f.facilities[k] < 5 ? `<button class="btn" data-action="upgrade:${k}">Améliorer (${money(facilityCost(f.facilities[k]))})</button>` : '<span class="chip on">Max</span>'}</div>`;
     const top = [...team.roster].sort((a, b) => b.contract.salary - a.contract.salary).slice(0, 12);
     return `<div class="row" style="align-items:flex-start;gap:12px">
       <div class="col grow">
@@ -330,21 +322,6 @@ export class LeagueHub implements Screen {
       ${slider('passRatio', 'Équilibre course / passe', 'Course', 'Passe')}
       ${slider('aggression', 'Agressivité (4e tentatives, blitz)', 'Prudent', 'Agressif')}
       ${slider('deepShots', 'Passes profondes', 'Courtes', 'Longues')}`;
-  }
-
-  private careerTab(): string {
-    const l = this.l;
-    const p = careerPlayer(l);
-    if (!p || !l.career) return '';
-    const c = l.career;
-    const trained = c.trainedWeek === l.week + l.season * 100;
-    return `<div class="row" style="align-items:flex-start;gap:12px"><div class="col grow">${playerCard(p, l)}</div>
-      <div class="col" style="width:34%">
-        <div class="panel col"><b>Entraînement de la semaine</b>${(['physique', 'technique', 'mental'] as TrainingFocus[]).map((f) => `<button class="btn" data-action="train:${f}" ${trained ? 'disabled' : ''}>${f[0].toUpperCase() + f.slice(1)}</button>`).join('')}</div>
-        <div class="panel col"><b>Points de compétence : ${c.skillPoints}</b>${c.skillPoints > 0 ? ATTR_KEYS.map((k) => `<button class="btn" style="min-height:36px;font-size:14px" data-action="skill:${k}">+1 ${t(`attr.${k}`)} (${p.attrs[k]})</button>`).join('') : '<div class="muted" style="font-size:14px">Gagnez des points en jouant, en atteignant vos objectifs et en vous entraînant.</div>'}</div>
-        <div class="panel"><b>Objectifs de saison</b>${c.goals.map((g) => `<div>${g.key} : ${g.progress}/${g.target} ${g.progress >= g.target ? '✅' : ''}</div>`).join('')}</div>
-        <div class="panel"><b>Récompenses</b><div class="muted">${c.awards.join(' · ') || 'Aucune pour le moment.'}</div>${c.draft ? `<div class="muted" style="font-size:13px">Drafté au tour ${c.draft.round}, choix n°${c.draft.pick}.</div>` : ''}</div>
-      </div></div>`;
   }
 
   private historyTab(): string {
@@ -403,8 +380,7 @@ export class LeagueHub implements Screen {
         return;
       case 'endSeason': {
         const report = endSeason(l);
-        if (l.mode === 'playerCareer') report.push(...careerAwards(l).map((x) => `🏅 ${x}`));
-        if (l.mode === 'season' || l.mode === 'playerCareer') {
+        if (l.mode === 'season') {
           runAiDraft(l, false);
           report.push(...startNewSeason(l));
           report.push(`La saison ${l.season} commence !`);
@@ -563,15 +539,6 @@ export class LeagueHub implements Screen {
         this.message(r.ok ? r.message : r.reason);
         return;
       }
-      case 'train': {
-        const msg = train(l, v as TrainingFocus);
-        this.render();
-        this.message(msg);
-        return;
-      }
-      case 'skill':
-        spendSkillPoint(l, v as keyof Attributes);
-        break;
     }
     void target;
     this.render();
@@ -595,8 +562,10 @@ export class LeagueHub implements Screen {
     const away = interseasonTeam(l, g.away);
     const app = this.app;
     const slot = this.slot;
-    app.go(new MatchScreen(app, {
-      home, away, userSide: g.home === l.userTeamId ? 0 : 1, context: 'league', quarterMinutes: l.quarterMinutes,
+    const isSide: Side = g.home === l.userTeamId ? 0 : 1;
+    const back = () => app.go(new LeagueHub(app, l, slot));
+    app.go(new PreMatchScreen(app, {
+      home, away, userSide: isSide, context: 'league', quarterMinutes: l.quarterMinutes,
       plans: [l.plans[home.id] ?? l.plans[l.userTeamId], l.plans[away.id] ?? l.plans[l.userTeamId]], playoff: true,
       title: `${l.interseason!.name} · ${g.label}`,
       onExit: (mc: MatchController | null, completed: boolean) => {
@@ -608,6 +577,17 @@ export class LeagueHub implements Screen {
         app.go(hub);
         if (msgs.length) hub.showMessage(msgs.join('\n'));
       },
+    }, {
+      competition: `${l.interseason!.name} · ${g.label}`,
+      opponentPlan: l.plans[isSide === 0 ? away.id : home.id],
+      onSimulate: () => {
+        const hub = new LeagueHub(app, l, slot);
+        const msgs = simulateInterseason(l, true);
+        hub.saveNow();
+        app.go(hub);
+        if (msgs.length) hub.showMessage(msgs.join('\n'));
+      },
+      onBack: back,
     }));
   }
 
@@ -624,9 +604,9 @@ export class LeagueHub implements Screen {
     const userSide: Side = g.home === l.userTeamId ? 0 : 1;
     const app = this.app;
     const slot = this.slot;
-    app.go(new MatchScreen(app, {
+    const back = () => app.go(new LeagueHub(app, l, slot));
+    app.go(new PreMatchScreen(app, {
       home, away, userSide, context: 'league', quarterMinutes: l.quarterMinutes,
-      lockedPlayerId: l.career?.playerId ?? null,
       plans: [l.plans[home.id], l.plans[away.id]],
       playoff: l.phase === 'playoffs',
       title: 'label' in g ? g.label : `Semaine ${l.week}`,
@@ -643,13 +623,23 @@ export class LeagueHub implements Screen {
         }
         app.go(hub);
       },
+    }, {
+      competition: `${l.cup ? l.cup.name : MODE_TITLES[l.mode]} · ${'label' in g ? g.label : `Semaine ${l.week}`}`,
+      schedule: l.schedule,
+      opponentPlan: l.plans[userSide === 0 ? away.id : home.id],
+      onSimulate: () => {
+        const hub = new LeagueHub(app, l, slot);
+        app.go(hub);
+        simulateWeek(l, true);
+        hub.finishWeek([]);
+      },
+      onBack: back,
     }));
   }
 
   /** Fin de semaine : progression de carrière, passage à la semaine suivante, sauvegarde automatique. */
   finishWeek(msgs: string[]): void {
     const l = this.l;
-    if (l.mode === 'playerCareer') msgs.push(...updateCareerAfterGame(l));
     const g = l.phase === 'regular' ? (l.schedule[l.week - 1] ?? []).find((x) => x.home === l.userTeamId || x.away === l.userTeamId) : l.playoffs.filter((x) => x.home === l.userTeamId || x.away === l.userTeamId).slice(-1)[0];
     if (g?.score) {
       const mine = g.home === l.userTeamId ? 0 : 1;

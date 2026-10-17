@@ -33,6 +33,10 @@ export interface Profile {
   tutorialDone: string[];
   /** Défis réussis : meilleur nombre d'étoiles par défi. */
   challenges: Record<string, number>;
+  /** Tactiques apprises à l'académie (identifiants du playbook). */
+  unlockedPlays: string[];
+  /** Identité de l'entraîneur. */
+  coach: { name: string; portrait: number };
 }
 
 /** Migrations : version N → N+1. Ajouter une entrée à chaque changement de schéma. */
@@ -103,6 +107,11 @@ export class SaveManager {
       quickMatches: Array.isArray(p?.quickMatches) ? p!.quickMatches.slice(-50) : [],
       tutorialDone: Array.isArray(p?.tutorialDone) ? p!.tutorialDone : [],
       challenges: p?.challenges && typeof p.challenges === 'object' && !Array.isArray(p.challenges) ? Object.fromEntries(Object.entries(p.challenges).filter(([, v]) => typeof v === 'number')) : {},
+      unlockedPlays: Array.isArray(p?.unlockedPlays) ? p!.unlockedPlays.filter((x) => typeof x === 'string') : [],
+      coach: {
+        name: typeof p?.coach?.name === 'string' && p.coach.name.trim() ? p.coach.name.slice(0, 24) : 'Coach',
+        portrait: typeof p?.coach?.portrait === 'number' && p.coach.portrait >= 0 && p.coach.portrait < 4 ? Math.floor(p.coach.portrait) : 0,
+      },
     };
   }
 

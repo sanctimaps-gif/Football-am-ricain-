@@ -8,7 +8,7 @@ import type { App, Screen } from '../App';
 import { el, esc, onAction } from '../dom';
 import { logoSvg } from '../logo';
 import { MainMenu } from './MainMenu';
-import { MatchScreen } from './MatchScreen';
+import { PreMatchScreen } from './PreMatchScreen';
 
 /** Ligues proposées au match rapide (+ sélections nationales). */
 export const TEAM_GROUPS: { id: string; label: string; flag: string }[] = [
@@ -92,10 +92,10 @@ export class QuickMatchSetup implements Screen {
     if (k === 'start') {
       audio.ui('confirm');
       const app = this.app;
-      app.go(new MatchScreen(app, {
+      app.go(new PreMatchScreen(app, {
         home: this.team('home'), away: this.team('away'), userSide: this.control, context: 'quick',
         onExit: () => app.go(new MainMenu(app)),
-      }));
+      }, { competition: 'Match amical', onBack: () => app.go(new QuickMatchSetup(app)) }));
       return;
     }
     this.render();

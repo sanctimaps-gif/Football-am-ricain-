@@ -3,7 +3,6 @@ import { createDefaultTeams, createTeamsFor, teamFromTemplate, teamOverall } fro
 import { ALL_CLUBS, displayName, leagueDef, LEAGUES } from '../../data/world';
 import { TEAM_TEMPLATES, type TeamTemplate } from '../../data/teams';
 import type { LogoShape, Team } from '../../data/types';
-import { CAREER_POSITIONS, createPlayerCareer, type CreatedPlayer } from '../../league/career';
 import { createLeague, isLeague } from '../../league/league';
 import type { League, LeagueMode } from '../../league/types';
 import type { App, Screen } from '../App';
@@ -40,7 +39,8 @@ export class TeamPickScreen implements Screen {
   private weeks = 10;
   private playoff: 2 | 4 = 4;
 
-  constructor(private app: App, private mode: LeagueMode) {
+  constructor(private app: App, private mode: LeagueMode, group?: string) {
+    if (group) this.group = group;
     this.el = el('div', 'screen');
     onAction(this.el, (a) => this.action(a));
     this.render();
@@ -196,53 +196,6 @@ export class FranchiseCreator implements Screen {
   }
 }
 
-/** Création du joueur de carrière. */
-export class PlayerCreator implements Screen {
-  readonly el: HTMLElement;
-  private d: CreatedPlayer = { firstName: 'Alex', lastName: 'Martin', position: 'WR', number: 11, skinTone: 2, heightCm: 188, visor: false };
-
-  constructor(private app: App) {
-    this.el = el('div', 'screen');
-    onAction(this.el, (a) => this.action(a));
-    this.render();
-  }
-
-  private render(): void {
-    const d = this.d;
-    const skins = ['#f1d3bc', '#e0b291', '#c68e68', '#9c6644', '#6f4529', '#4a2e1b'];
-    this.el.innerHTML = `<div class="topbar"><button class="btn ghost" data-action="back">‹ Retour</button><h1>Créer mon joueur</h1><button class="btn primary" data-action="create">Vers la draft ▶</button></div>
-      <div class="panel scroll grow col">
-        <div class="row"><input type="text" data-field="firstName" value="${esc(d.firstName)}" maxlength="14" placeholder="Prénom"><input type="text" data-field="lastName" value="${esc(d.lastName)}" maxlength="16" placeholder="Nom"><input type="text" data-field="number" value="${d.number}" maxlength="2" style="width:70px" inputmode="numeric"></div>
-        <div class="opt-label">Poste</div><div class="row" style="flex-wrap:wrap">${CAREER_POSITIONS.map((p) => `<button class="chip ${p === d.position ? 'on' : ''}" data-action="pos:${p}">${p}</button>`).join('')}</div>
-        <div class="opt-label">Apparence</div><div class="row">${skins.map((c, i) => `<button data-action="skin:${i}" style="width:38px;height:38px;border-radius:50%;background:${c};border:${d.skinTone === i ? '3px solid #ffcc1a' : '1px solid #555'}" aria-label="teint ${i + 1}"></button>`).join('')}<button class="chip ${d.visor ? 'on' : ''}" data-action="visor">Visière</button></div>
-        <div class="setting"><label>Taille : ${d.heightCm} cm</label><div class="row"><button class="btn" data-action="h:-2">−</button><button class="btn" data-action="h:2">+</button></div></div>
-        <div class="muted">Votre joueur débute à 21 ans avec un potentiel élevé. Ses performances, ses entraînements et ses objectifs feront évoluer ses attributs. Pendant les matchs, vous contrôlez uniquement votre joueur lorsqu’il est sur le terrain.</div>
-      </div>`;
-    this.el.querySelectorAll('input[data-field]').forEach((inp) => inp.addEventListener('change', () => {
-      const f = (inp as HTMLInputElement).dataset.field!;
-      const v = (inp as HTMLInputElement).value.trim();
-      if (f === 'number') this.d.number = Math.max(1, Math.min(99, Number(v) || 11));
-      else (this.d as unknown as Record<string, string>)[f] = v.slice(0, 16);
-    }));
-  }
-
-  private action(a: string): void {
-    audio.ui();
-    const [k, v] = a.split(':');
-    if (k === 'back') return this.app.go(new MainMenu(this.app));
-    if (k === 'pos') this.d.position = v as CreatedPlayer['position'];
-    if (k === 'skin') this.d.skinTone = Number(v);
-    if (k === 'visor') this.d.visor = !this.d.visor;
-    if (k === 'h') this.d.heightCm = Math.max(170, Math.min(205, this.d.heightCm + Number(v)));
-    if (k === 'create') {
-      const l = createPlayerCareer(this.d);
-      l.quarterMinutes = this.app.settings.quarterMinutes;
-      return startLeague(this.app, l);
-    }
-    this.render();
-  }
-}
-
 /** Sauvegardes et reprise de partie. */
 export class SavesScreen implements Screen {
   readonly el: HTMLElement;
@@ -281,4 +234,11 @@ export class SavesScreen implements Screen {
     }
     this.render();
   }
+}
+
+/** Reprend la partie de l'emplacement donné (ou ouvre l'écran des sauvegardes si elle est illisible). */
+export function resumeSlot(app: App, slot: number): void {
+  const l = app.saves.loadSlot(slot, isLeague);
+  if (l) app.go(new LeagueHub(app, l, slot));
+  else app.go(new SavesScreen(app));
 }

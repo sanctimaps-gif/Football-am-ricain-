@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.6.0 — NFL League : vous êtes l'entraîneur
+
+### Ajouté
+- Nouveau nom : **NFL League** (aucun logo ni marque de la NFL dans le jeu).
+- Rôle d'**entraîneur / investisseur** : match regardé comme à la télévision (caméra latérale, bandeau de commentaire),
+  appel d'une tactique avant chaque action, consigne « receveur prioritaire », temps morts, conversion, entraîneur adjoint
+  (suggestions, mode automatique), panneaux Aperçu / Plan de jeu / Stats / Notes, vitesse ×1/×2/×4.
+- **Académie tactique** : 29 leçons (texte, action au ralenti avec joueurs clés étiquetés, question) ; une tactique doit
+  être apprise avant d'être appelée ; 4 tutoriels de base obligatoires avant le premier match.
+- **Rapport d'avant-match** sur l'adversaire (forme, style, joueurs clés, forces/faiblesses, comparaison des unités,
+  conseils reliés aux leçons) et compositions ; « Jouer le match » ou « Jeu rapide ».
+- **Menu en catégories** (barre latérale) et grandes cartes ; profil d'entraîneur (nom, portrait) ; portraits sans logos.
+- Installations améliorables dans tous les modes de gestion.
+
+### Supprimé
+- Contrôle des joueurs sur le terrain (joystick, boutons, commandes simplifiées, réglages associés), carrière de joueur
+  (anciennes sauvegardes converties en championnat), ancien tutoriel des commandes.
+
 ## 0.5.0 — joueurs réalistes
 
 ### Ajouté

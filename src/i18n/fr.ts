@@ -33,7 +33,7 @@ export const fr: Record<string, string> = {
   'setup.title': 'Préparation du match',
   'setup.home': 'Équipe à domicile',
   'setup.away': 'Équipe à l’extérieur',
-  'setup.control': 'Je contrôle',
+  'setup.control': 'Équipe que vous entraînez',
   'setup.difficulty': 'Difficulté',
   'setup.quarter': 'Durée d’un quart-temps',
   'setup.stadium': 'Stade',

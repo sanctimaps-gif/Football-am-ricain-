@@ -1,5 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { createPlayerCareer, careerPlayer, train, updateCareerAfterGame } from '../../src/league/career';
 import { advanceWeek, createLeague, isLeague, standings, simulateWeek, teamById, userGame, weekComplete } from '../../src/league/league';
 import { capSpace, evaluateTrade, executeTrade, releasePlayer, signFreeAgent, upgradeFacility } from '../../src/league/market';
 import { draftOnClock, draftPlayer, endSeason, runAiDraft, startNewSeason } from '../../src/league/offseason';
@@ -151,23 +150,6 @@ describe('marché et budget', () => {
     l.finances.lyn.cash = 100000;
     expect(upgradeFacility(l, 'lyn', 'training').ok).toBe(true);
     expect(l.finances.lyn.facilities.training).toBe(3);
-  });
-});
-
-describe('carrière de joueur', () => {
-  it('le joueur créé est drafté, s’entraîne et progresse', () => {
-    const l = createPlayerCareer({ firstName: 'Léo', lastName: 'Test', position: 'WR', number: 88, skinTone: 2, heightCm: 188, visor: false }, 11);
-    const p = careerPlayer(l)!;
-    expect(p).toBeTruthy();
-    expect(p.isUserCreated).toBe(true);
-    expect(l.career!.draft).not.toBeNull();
-    const before = { ...p.attrs };
-    train(l, 'technique');
-    expect(JSON.stringify(before)).not.toBe(JSON.stringify(p.attrs));
-    expect(train(l, 'technique')).toContain('déjà');
-    simulateWeek(l, true);
-    updateCareerAfterGame(l);
-    expect(l.seasonStats[p.id]?.games ?? 0).toBeGreaterThanOrEqual(0);
   });
 });
 

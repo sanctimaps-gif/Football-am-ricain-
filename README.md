@@ -1,12 +1,14 @@
-# Gridiron Dynasty
+# NFL League
 
-Jeu de football américain en 3D conçu pour téléphone en **mode paysage**, avec match jouable aux commandes tactiles,
-IA offensive et défensive, règles NFL et une structure de modes inspirée des jeux de football sans licences :
+Jeu de football américain en 3D conçu pour téléphone en **mode paysage**, où vous êtes **entraîneur et investisseur** :
+les matchs se regardent comme à la télévision et, avant chaque action, vous appelez une tactique apprise à
+l'**académie tactique** (texte, action au ralenti, question). Rapport sur l'adversaire avant chaque match, IA offensive
+et défensive, règles NFL (aucun logo ni marque de la NFL) et une structure de modes inspirée des jeux de football sans licences :
 109 équipes (7 ligues régionales aux clubs « Ville + couleur » + 16 sélections), **carrière de club** (départ en 3e
-division avec 3 joueurs, montées, transferts), carrière de joueur, championnats (dont ligue personnalisée), coupes et
+division avec 3 joueurs, montées, transferts), championnats (dont ligue personnalisée), coupes et
 tournois, défis et événement de la semaine, **Ultimate Team hors ligne** (cartes, packs gagnés en jouant, EVO, Journeys,
 Arena, VS, Field Pass), équipes féminines, carrière de coach, franchise. Club créé ou repris, montée par playoffs,
-éditeur de maillot, commandes simplifiées en option.
+éditeur de maillot.
 
 > Nom de travail modifiable dans `src/core/config.ts` (`GAME_NAME`).
 
@@ -26,7 +28,7 @@ pas de GPU, pas de licence, pas de SDK Android). Avec votre accord (« les deux 
 | Vitest (tests unitaires/intégration) | 2.1 |
 | Playwright (tests e2e) | 1.56 |
 
-Aucune ressource externe (modèles, sons, polices, images) : tout est généré par le code (voir `ASSET_CREDITS.md`).
+Ressources externes : modèle 3D des joueurs (CC BY 4.0) et portraits d'entraîneurs fournis (logos effacés) — voir `ASSET_CREDITS.md`. Le reste est généré par le code.
 
 ## Lancer le jeu
 

@@ -62,7 +62,7 @@ export class App {
     audio.volumes = { ...this.settings.volumes };
     this.teams = createDefaultTeams(1);
     this.renderer = new GameRenderer(canvas, this.settings.quality);
-    this.renderer.cameraMode = this.settings.camera;
+    this.renderer.cameraMode = 'broadcast';
     this.renderer.setupMatch(this.teams[0], this.teams[1]);
     this.fpsEl = el('div', 'fps');
     document.body.appendChild(this.fpsEl);
@@ -96,7 +96,7 @@ export class App {
     this.canvas.replaceWith(fresh);
     (this as { canvas: HTMLCanvasElement }).canvas = fresh;
     this.renderer = new GameRenderer(fresh, this.settings.quality);
-    this.renderer.cameraMode = this.settings.camera;
+    this.renderer.cameraMode = 'broadcast';
     this.renderer.setupMatch(this.teams[0], this.teams[1]);
     this.resize();
   }
@@ -106,7 +106,7 @@ export class App {
     setLanguage(this.settings.language);
     audio.volumes = { ...this.settings.volumes };
     audio.applyVolumes();
-    this.renderer.cameraMode = this.settings.camera;
+    this.renderer.cameraMode = 'broadcast';
   }
 
   saveProfile(): void {

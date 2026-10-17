@@ -12,7 +12,7 @@ import {
   applyCoinToss, applyRunoff, attackDir, callTimeout, createGameState, leader, lineToGain, resolvePlay, setConversionType,
 } from '../rules/engine';
 import { playerImpact } from '../rules/stats';
-import { emptyResult, other, type GameState, type PlayResult, type Side } from '../rules/types';
+import { other, type GameState, type PlayResult, type Side } from '../rules/types';
 import { PlaySim } from '../sim/PlaySim';
 import { kickoffCoverage, kickReturnUnit, selectPersonnel } from '../sim/personnel';
 import { DIFFICULTIES, emptyInput, type Difficulty, type PlaySetup, type SimEvent, type SimInput, type SimKind } from '../sim/types';
@@ -32,19 +32,19 @@ export type MatchEvent =
 export interface MatchOptions {
   rules?: RulesConfig;
   difficulty?: Difficulty['id'];
-  /** Équipe contrôlée par l'utilisateur, null = IA contre IA (mode spectateur / simulation). */
+  /**
+   * Équipe entraînée par l'utilisateur (il appelle les actions, les joueurs sont tous dirigés par l'IA),
+   * null = IA contre IA (spectateur / simulation).
+   */
   userSide: Side | null;
   seed?: number;
-  autoSwitch?: boolean;
-  userKicks?: boolean;
-  lockedPlayerId?: string | null;
   plans?: [GamePlan, GamePlan];
-  /** Chrono de jeu (40 s) pour l'attaque contrôlée par l'utilisateur : retard de jeu à l'expiration. */
-  playClock?: boolean;
   /** Mode sans interface : pas de temps morts d'affichage. */
   headless?: boolean;
-  /** Livre de jeu restreint de l'utilisateur (Ultimate Team) ; les actions spéciales restent disponibles. */
+  /** Tactiques disponibles pour l'entraîneur (débloquées à l'académie) ; les actions spéciales restent disponibles. */
   playbook?: { off: string[]; def: string[] };
+  /** Actions imposées aux deux équipes (démonstrations au ralenti de l'académie). */
+  forcedCalls?: { off?: string; def?: string };
   /** Condition de fin anticipée (Arena : fin du drive), vérifiée avant chaque action. */
   endCheck?: (s: GameState) => boolean;
 }
@@ -69,18 +69,15 @@ export class MatchController {
   conversionType: 'kick' | 'two' | null = null;
   lastTags: string[] = [];
   lastResult: PlayResult | null = null;
-  autoSwitch: boolean;
-  userKicks: boolean;
-  lockedPlayerId: string | null;
-  userDefSlot: string | null = null;
+  /** L'entraîneur adjoint appelle les actions à la place de l'utilisateur. */
+  autoCoach = false;
+  /** Consigne de l'entraîneur pour la prochaine passe : receveur prioritaire (slot). */
+  priorityTarget: string | null = null;
   plans: [GamePlan, GamePlan];
   scouting: [ScoutingReport, ScoutingReport] = [{ passes: 0, runs: 0 }, { passes: 0, runs: 0 }];
   recentCalls: [string[], string[]] = [[], []];
   fatigue = new Map<string, number>();
   paused = false;
-  /** Secondes restantes au chrono de jeu (null = inactif). */
-  playClock: number | null = null;
-  readonly usePlayClock: boolean;
   /** Entraînement / tutoriel : permet de fixer la situation avant chaque action. */
   practiceHook: ((s: GameState) => void) | null = null;
   private accumulator = 0;
@@ -93,11 +90,7 @@ export class MatchController {
     this.userSide = opts.userSide;
     this.headless = opts.headless ?? false;
     this.rng = new Rng(opts.seed ?? (Date.now() >>> 0));
-    this.autoSwitch = opts.autoSwitch ?? true;
-    this.userKicks = opts.userKicks ?? true;
-    this.lockedPlayerId = opts.lockedPlayerId ?? null;
     this.plans = opts.plans ?? [DEFAULT_GAMEPLAN, DEFAULT_GAMEPLAN];
-    this.usePlayClock = (opts.playClock ?? false) && this.userSide !== null;
     const sideOf: Record<string, Side> = {};
     for (const p of home.roster) sideOf[p.id] = 0;
     for (const p of away.roster) sideOf[p.id] = 1;
@@ -136,22 +129,13 @@ export class MatchController {
   update(dt: number, input: SimInput = emptyInput()): void {
     if (this.paused || this.phase === 'MatchFinished') return;
     this.phaseTime += dt;
-    // chrono de jeu : l'attaque de l'utilisateur doit snapper avant 40 s, sinon retard de jeu
-    if (this.playClock !== null && (this.phase === 'PlaySelection' || this.phase === 'PreSnap')) {
-      this.playClock -= dt;
-      if (this.playClock <= 0) {
-        this.delayOfGame();
-        return;
-      }
-    }
     switch (this.phase) {
       case 'PreSnap': {
         if (!this.sim) return;
         this.stepSim(dt, input);
-        const userOffense = this.userSide === this.sim.offense && this.sim.setup.kind !== 'kickoff';
-        const userKickoff = this.userSide === this.sim.offense && this.sim.setup.kind === 'kickoff';
-        const autoDelay = this.headless ? 0 : this.userSide === null ? 1.0 : 1.4 + (this.sim.setup.seed % 10) / 10;
-        if (!userOffense && !userKickoff && this.phaseTime >= autoDelay) this.snap();
+        // les joueurs sont tous dirigés par l'IA : snap automatique après la mise en place
+        const autoDelay = this.headless ? 0 : 1.2 + (this.sim.setup.seed % 10) / 20;
+        if (this.phaseTime >= autoDelay) this.snap();
         break;
       }
       case 'LivePlay':
@@ -183,7 +167,7 @@ export class MatchController {
         if (this.headless || this.phaseTime >= BANNER_TIME.quarter) this.prepareNext(true);
         break;
       case 'PlaySelection':
-        if (this.userSide === null) this.aiSelectAll();
+        if (this.userSide === null || this.autoCoach) this.aiSelectAll();
         break;
       default:
         break;
@@ -253,44 +237,61 @@ export class MatchController {
       }
     }
     this.setPhase('PlaySelection');
-    this.playClock = this.usePlayClock && s.nextKind === 'scrimmage' && s.possession === this.userSide ? 40 : null;
     this.aiSelectAll();
   }
 
-  /** Retard de jeu : 5 yards contre l'attaque, la tentative est rejouée. */
-  private delayOfGame(): void {
+  /** Côté appelé par l'IA : adversaire, spectateur, ou entraîneur adjoint en mode automatique. */
+  private aiCalls(side: Side): boolean {
+    return side !== this.userSide || this.autoCoach;
+  }
+
+  private allowedFor(side: Side): { off?: Set<string>; def?: Set<string> } {
+    const book = side === this.userSide ? this.opts.playbook : undefined;
+    return book ? { off: new Set(book.off), def: new Set(book.def) } : {};
+  }
+
+  /** Suggestion d'attaque de l'entraîneur adjoint (limitée aux tactiques disponibles). */
+  suggestOffense(): OffensivePlay {
     const s = this.state;
-    this.playClock = null;
-    const r = emptyResult('scrimmage', s.possession, s.ballOn);
-    r.preSnapPenalty = { type: 'delayOfGame', against: s.possession };
-    r.summary = { key: 'penalty.delayOfGame' };
-    this.bus.emit({ type: 'sim', event: { type: 'flag', penalty: 'delayOfGame' } });
-    this.bus.emit({ type: 'sim', event: { type: 'whistle' } });
-    const tags = resolvePlay(s, r, this.rules);
-    this.lastTags = tags;
-    this.lastResult = r;
-    this.bus.emit({ type: 'resolved', tags, result: r });
-    this.offCall = null;
-    this.defCall = null;
-    this.setPhase('PlayReview');
+    const off = this.userSide ?? s.possession;
+    return chooseOffensivePlay(s, this.rules, this.teams[off], new Rng(this.rng.int(0, 2 ** 31)), this.plans[off], this.recentCalls[off], this.allowedFor(off).off);
+  }
+
+  /** Suggestion de défense de l'entraîneur adjoint (formation adverse supposée selon la situation). */
+  suggestDefense(visible: OffensivePlay['formation'] = 'shotgun'): DefensivePlay {
+    const s = this.state;
+    const def = this.userSide ?? other(s.possession);
+    return chooseDefensivePlay(s, this.rules, new Rng(this.rng.int(0, 2 ** 31)), visible, this.scouting[s.possession], this.plans[def], this.recentCalls[def], this.allowedFor(def).def);
   }
 
   private aiSelectAll(): void {
     const s = this.state;
     const off = s.possession;
     const def = other(off);
-    if (off !== this.userSide && !this.offCall) {
+    const forced = this.opts.forcedCalls;
+    if (this.aiCalls(off) && !this.offCall) {
       if (s.nextKind === 'conversion' && !this.conversionType) {
         this.conversionType = decideConversion(s, this.rules);
         setConversionType(s, this.conversionType, this.rules);
       }
-      this.offCall = s.nextKind === 'conversion' && this.conversionType === 'kick'
-        ? playById('fieldGoal')
-        : chooseOffensivePlay(s, this.rules, this.teams[off], this.rng, this.plans[off], this.recentCalls[off]);
+      if (forced?.off && s.nextKind === 'scrimmage') this.offCall = playById(forced.off);
+      else if (s.nextKind === 'conversion' && this.conversionType === 'kick') this.offCall = playById('fieldGoal');
+      else if (off !== this.userSide && this.difficulty.id === 'easy' && s.nextKind === 'scrimmage' && s.down < 4 && this.rng.chance(0.35)) {
+        // adversaire facile : appels moins adaptés à la situation
+        const pool = OFFENSIVE_PLAYS.filter((p) => p.category !== 'special');
+        this.offCall = pool[this.rng.int(0, pool.length - 1)];
+      } else this.offCall = chooseOffensivePlay(s, this.rules, this.teams[off], this.rng, this.plans[off], this.recentCalls[off], this.allowedFor(off).off);
       if (s.nextKind === 'conversion' && this.conversionType === 'two' && this.offCall.category === 'special') this.offCall = playById('quickSlants');
     }
-    if (def !== this.userSide && !this.defCall && this.offCall) {
-      this.defCall = chooseDefensivePlay(s, this.rules, this.rng, this.offCall.formation, this.scouting[off], this.plans[def], this.recentCalls[def]);
+    if (this.aiCalls(def) && !this.defCall && this.offCall) {
+      if (forced?.def) this.defCall = defPlayById(forced.def);
+      else if (def !== this.userSide && this.difficulty.id === 'easy' && this.rng.chance(0.35)) this.defCall = DEFENSIVE_PLAYS[this.rng.int(0, DEFENSIVE_PLAYS.length - 1)];
+      else {
+        // adversaire difficile : il « lit » souvent les intentions (tendance de l'action réellement appelée)
+        const peek = def !== this.userSide && this.difficulty.id === 'hard' && this.offCall.category !== 'special' && this.rng.chance(0.3);
+        const scout = peek ? (this.offCall.category === 'pass' ? { passes: 9, runs: 1 } : { passes: 1, runs: 9 }) : this.scouting[off];
+        this.defCall = chooseDefensivePlay(s, this.rules, this.rng, this.offCall.formation, scout, this.plans[def], this.recentCalls[def], this.allowedFor(def).def);
+      }
     }
     this.tryStartPlay();
   }
@@ -314,7 +315,10 @@ export class MatchController {
       if (this.conversionType === 'two' && p.category === 'special') return false;
     }
     if (p.subtype === 'kneel' && this.state.nextKind === 'conversion') return false;
-    this.offCall = p;
+    // consigne de l'entraîneur : receveur prioritaire en tête de la lecture du QB
+    const target = this.priorityTarget;
+    this.priorityTarget = null;
+    this.offCall = target && p.progression?.includes(target) ? { ...p, progression: [target, ...p.progression.filter((x) => x !== target)] } : p;
     this.aiSelectAll();
     return true;
   }
@@ -390,25 +394,26 @@ export class MatchController {
       defPlay: def ?? DEFENSIVE_PLAYS[0],
       offPlayers,
       defPlayers,
-      userSide: this.userSide,
-      lockedPlayerId: this.lockedPlayerId,
-      userDefSlot: this.userDefSlot,
-      difficulty: this.difficulty,
+      // aucun joueur n'est dirigé par l'utilisateur : l'entraîneur ne fait qu'appeler les actions
+      userSide: null,
+      lockedPlayerId: null,
+      userDefSlot: null,
+      // tous les joueurs sont dirigés par l'IA : mêmes réflexes des deux côtés, la difficulté porte sur le coach adverse
+      difficulty: DIFFICULTIES.normal,
       rules: this.rules,
       seed: this.rng.int(0, 2 ** 31),
       situation: { trailingLate: late && diff < 0, leadingLate: late && diff > 0, down: s.down, toGo: s.toGo },
       fatigue: this.fatigue,
-      autoSwitch: this.autoSwitch,
-      userKicks: this.userKicks,
+      autoSwitch: false,
+      userKicks: false,
     };
     this.sim = new PlaySim(setup);
     this.accumulator = 0;
   }
 
-  /** Snap (bouton « Hike » de l'utilisateur ou automatique). */
+  /** Snap (automatique après la mise en place). */
   snap(): boolean {
     if (this.phase !== 'PreSnap' || !this.sim) return false;
-    this.playClock = null;
     applyRunoff(this.state, this.rules);
     this.sim.snap();
     if (this.sim.phase === 'dead') this.setPhase('BallDead');

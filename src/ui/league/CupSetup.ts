@@ -15,7 +15,7 @@ export class CupSetup implements Screen {
   private league = 'usa';
   private team: string | null = null;
 
-  constructor(private app: App) {
+  constructor(private app: App, private only?: (c: (typeof CUPS)[number]) => boolean, private title = 'Coupes & tournois') {
     this.el = el('div', 'screen');
     onAction(this.el, (a) => this.action(a));
     this.render();
@@ -28,8 +28,8 @@ export class CupSetup implements Screen {
 
   private render(): void {
     if (!this.cup) {
-      this.el.innerHTML = `<div class="topbar"><button class="btn ghost" data-action="back">‹ Retour</button><h1>Coupes & tournois</h1></div>
-        <div class="scroll grow"><div class="card-grid">${CUPS.map((c) => `<button class="tile" data-action="cup:${c.id}"><span class="ico">${c.icon}</span>${esc(c.name)}<small>${esc(c.desc)}</small></button>`).join('')}</div></div>`;
+      this.el.innerHTML = `<div class="topbar"><button class="btn ghost" data-action="back">‹ Retour</button><h1>${esc(this.title)}</h1></div>
+        <div class="scroll grow"><div class="card-grid">${CUPS.filter((c) => !this.only || this.only(c)).map((c) => `<button class="tile" data-action="cup:${c.id}"><span class="ico">${c.icon}</span>${esc(c.name)}<small>${esc(c.desc)}</small></button>`).join('')}</div></div>`;
       return;
     }
     const def = cupDef(this.cup);

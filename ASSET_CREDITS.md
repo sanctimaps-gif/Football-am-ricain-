@@ -1,12 +1,14 @@
 # Crédits des ressources
 
-Une seule ressource externe : le modèle des joueurs réalistes (voir ci-dessous). Tout le reste est généré par le code du dépôt.
+Deux ressources externes : le modèle des joueurs réalistes et les portraits d'entraîneurs (voir ci-dessous). Tout le reste est généré par le code du dépôt.
 
 ## Ressource externe
 
 | Ressource | Auteur | Licence | Modifications |
 |---|---|---|---|
 | Joueur 3D réaliste avec squelette (`public/models/player.glb` et textures `public/models/*`) — « American Football Player », https://sketchfab.com/3d-models/american-football-player-10bf41a1c05a4c9cb74676b7dd8cb18e | blakeallen25 | CC BY 4.0 | Maillage allégé (≈11 000 triangles), casque d'origine supprimé (remplacé par un casque procédural), logos de marque effacés des textures, numéros d'origine retirés, couleurs d'équipe appliquées par masque, animation remplacée par une animation procédurale |
+
+| Portraits d'entraîneurs (`public/coach/coach0-3.jpg`) | Images fournies par l'auteur du projet | Utilisation dans le jeu à sa demande | Recadrées en 4 portraits 256 px ; **tous les logos et marques effacés** (logos d'équipes et de la ligue sur casquettes et vestes, virgule d'équipementier, marque du micro) par remplissage par diffusion |
 
 Le modèle n'est utilisé qu'en qualités moyenne et haute ; en qualité basse (ou s'il ne se charge pas), les joueurs en primitives ci-dessous sont utilisés.
 
