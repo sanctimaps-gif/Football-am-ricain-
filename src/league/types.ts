@@ -9,8 +9,14 @@ export type LeaguePhase = 'regular' | 'playoffs' | 'offseason' | 'draft' | 'done
 export interface Facilities {
   training: number; // 1..5 : progression des joueurs
   medical: number; // 1..5 : durée des blessures
-  stadium: number; // 1..5 : affluence et recettes
+  stadium: number; // 1..5 : avantage à domicile et recettes
+  /** 1..5 : capacité (sièges supplémentaires). Absent dans les anciennes sauvegardes = 1. */
+  seats?: number;
+  /** 1..5 : boutique du club (revenu hebdomadaire). Absent = 1. */
+  shop?: number;
 }
+
+export type FacilityKind = 'stadium' | 'seats' | 'shop' | 'medical' | 'training';
 
 export interface Finance {
   /** Trésorerie en milliers $. */
@@ -21,6 +27,12 @@ export interface Finance {
   facilities: Facilities;
   seasonRevenue: number;
   seasonExpenses: number;
+  /** Diplômes (gagnés en jouant, servent aux constructions). */
+  diplomas?: number;
+  /** Trousses de secours (soignent un blessé immédiatement). */
+  kits?: number;
+  /** Construction en cours (une à la fois). */
+  building?: { kind: FacilityKind; level: number; weeksLeft: number } | null;
 }
 
 export interface CoachState {

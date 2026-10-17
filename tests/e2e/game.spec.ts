@@ -150,7 +150,7 @@ for (const r of RESOLUTIONS) {
       }
       return boxes.length;
     };
-    expect(await inView('.mcard, .icon-btn, .coach-chip')).toBeGreaterThan(4);
+    expect(await inView('.fl-card, .fl-hero, .icon-btn, .coach-chip')).toBeGreaterThan(6);
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1)).toBe(true);
     await page.screenshot({ path: `test-results/menu-${r.name}.png` });
     await unlockBasics(page);

@@ -1,6 +1,6 @@
 {
   "name": "gridiron-dynasty",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "type": "module",
   "description": "Jeu de football américain 3D pour mobile (paysage) — Three.js + TypeScript",

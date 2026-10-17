@@ -1,5 +1,6 @@
 import * as THREE from 'three';
-import { FIELD } from '../core/config';
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
+import { FIELD, GAME_NAME } from '../core/config';
 import type { Team } from '../data/types';
 import { glowTexture } from './effects';
 import { createFieldTexture, createGrassNormalMap, FIELD_MARGIN } from './fieldTexture';
@@ -11,7 +12,64 @@ export interface StadiumParts {
   heads: THREE.InstancedMesh;
   crowdBase: Float32Array; // y de base de chaque spectateur
   crowdCount: number;
+  /** Animation des panneaux LED (défilement). */
+  tick(dt: number): void;
+  /** Met à jour l'écran géant (score, chrono). */
+  updateScreen(text: { home: string; away: string; score: [number, number]; info: string }): void;
   dispose(): void;
+}
+
+/** Texture des panneaux LED : messages défilants aux couleurs du club. */
+function ledTexture(home: Team, away: Team): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 2048;
+  c.height = 64;
+  const g = c.getContext('2d')!;
+  const msgs = [
+    { t: GAME_NAME.toUpperCase(), bg: '#0b1530', fg: '#c8ff3d' },
+    { t: home.city.toUpperCase(), bg: home.colors.primary, fg: '#ffffff' },
+    { t: 'ACADÉMIE TACTIQUE', bg: '#101010', fg: '#33e1ff' },
+    { t: away.city.toUpperCase(), bg: away.colors.primary, fg: '#ffffff' },
+  ];
+  const w = c.width / msgs.length;
+  msgs.forEach((m, i) => {
+    g.fillStyle = m.bg;
+    g.fillRect(i * w, 0, w, 64);
+    g.fillStyle = m.fg;
+    g.font = '900 40px "Arial Narrow", Arial, sans-serif';
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillText(m.t, i * w + w / 2, 34, w - 20);
+  });
+  // trame de pixels LED
+  g.fillStyle = 'rgba(0,0,0,0.22)';
+  for (let y = 0; y < 64; y += 3) g.fillRect(0, y, c.width, 1);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = THREE.RepeatWrapping;
+  return t;
+}
+
+/** Texture de rangées de sièges (gradins). */
+function seatTexture(color: string): THREE.CanvasTexture {
+  const c = document.createElement('canvas');
+  c.width = 64;
+  c.height = 64;
+  const g = c.getContext('2d')!;
+  g.fillStyle = '#20242a';
+  g.fillRect(0, 0, 64, 64);
+  const base = new THREE.Color(color);
+  for (let i = 0; i < 4; i++) {
+    const col = base.clone().offsetHSL(0, 0, (i % 2 ? -0.05 : 0.04));
+    g.fillStyle = `#${col.getHexString()}`;
+    g.fillRect(i * 16 + 2, 6, 12, 30); // dossier
+    g.fillStyle = `#${col.clone().offsetHSL(0, 0, -0.12).getHexString()}`;
+    g.fillRect(i * 16 + 2, 36, 12, 10); // assise
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.wrapS = THREE.RepeatWrapping;
+  return t;
 }
 
 /** Conversion repère simulation (yards) → monde three.js. */
@@ -114,8 +172,38 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
   group.add(mouth);
 
   // Tribunes (gradins en escalier) + foule instanciée
-  const standMat = new THREE.MeshStandardMaterial({ color: '#2a2f36', roughness: 0.9 });
-  const standAccent = new THREE.MeshStandardMaterial({ color: home.stadium.standColor, roughness: 0.8 });
+  const seatColor = home.stadium.standColor || home.colors.primary;
+  const seatsTex = seatTexture(seatColor);
+  disposables.push(seatsTex);
+  const standMats = new Map<number, THREE.MeshStandardMaterial>();
+  /** Matériau de gradin (sièges répétés selon la longueur de la tribune). */
+  const standMat = (length: number) => {
+    let m = standMats.get(length);
+    if (!m) {
+      const tx = seatsTex.clone();
+      tx.repeat.set(length / 2.2, 1);
+      tx.needsUpdate = true;
+      disposables.push(tx);
+      m = new THREE.MeshStandardMaterial({ map: quality === 'low' ? null : tx, color: quality === 'low' ? '#2a2f36' : '#ffffff', roughness: 0.85 });
+      standMats.set(length, m);
+    }
+    return m;
+  };
+  const standAccent = new THREE.MeshStandardMaterial({ color: '#1b1f25', roughness: 0.8 });
+  const led = ledTexture(home, away);
+  disposables.push(led);
+  const ledMats = new Map<number, THREE.MeshBasicMaterial>();
+  const ledMat = (length: number) => {
+    let m = ledMats.get(length);
+    if (!m) {
+      const tx = led.clone();
+      tx.repeat.set(length / 40, 1);
+      tx.needsUpdate = true;
+      m = new THREE.MeshBasicMaterial({ map: tx, color: new THREE.Color(1.6, 1.6, 1.6), toneMapped: true });
+      ledMats.set(length, m);
+    }
+    return m;
+  };
   const tiers = 12;
   const tierDepth = 1.6;
   const tierRise = 0.95;
@@ -124,7 +212,7 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
   const addStand = (cx: number, cz: number, length: number, rotY: number, startDist: number) => {
     const sg = new THREE.Group();
     for (let t = 0; t < tiers; t++) {
-      const step = new THREE.Mesh(new THREE.BoxGeometry(length, tierRise * (t + 1), tierDepth), t % 4 === 3 ? standAccent : standMat);
+      const step = new THREE.Mesh(new THREE.BoxGeometry(length, tierRise * (t + 1), tierDepth), t % 6 === 5 ? standAccent : standMat(length));
       step.position.set(0, (tierRise * (t + 1)) / 2, startDist + t * tierDepth);
       step.receiveShadow = quality === 'high';
       sg.add(step);
@@ -133,10 +221,25 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
         crowdPositions.push(sx + (Math.random() - 0.5) * 0.2, tierRise * (t + 1) + 0.45, startDist + t * tierDepth - 0.2, cx, cz, rotY);
       }
     }
-    // mur avant (panneaux publicitaires)
-    const wall = new THREE.Mesh(new THREE.BoxGeometry(length, 1.4, 0.3), new THREE.MeshStandardMaterial({ color: home.colors.primary, emissive: home.colors.primary, emissiveIntensity: 0.25 }));
-    wall.position.set(0, 0.7, startDist - 1);
+    // panneaux LED défilants au pied de la tribune
+    const wall = new THREE.Mesh(new THREE.BoxGeometry(length, 1.1, 0.3), [standAccent, standAccent, standAccent, standAccent, ledMat(length), standAccent]);
+    wall.rotation.y = Math.PI;
+    wall.position.set(0, 0.55, startDist - 1);
     sg.add(wall);
+    // toit en porte-à-faux avec rampe lumineuse (qualités moyenne et haute)
+    if (quality !== 'low') {
+      const depth = tiers * tierDepth + 3;
+      const roof = new THREE.Mesh(new THREE.BoxGeometry(length + 2, 0.35, depth * 0.62), new THREE.MeshStandardMaterial({ color: '#c9ced6', roughness: 0.5, metalness: 0.4 }));
+      roof.position.set(0, tierRise * tiers + 6.5, startDist + depth * 0.62);
+      roof.rotation.x = -0.12;
+      sg.add(roof);
+      const strip = new THREE.Mesh(new THREE.BoxGeometry(length, 0.15, 0.4), new THREE.MeshBasicMaterial({ color: new THREE.Color(4, 3.8, 3.4) }));
+      strip.position.set(0, tierRise * tiers + 6.1, startDist + depth * 0.33);
+      sg.add(strip);
+      const back = new THREE.Mesh(new THREE.BoxGeometry(length + 2, tierRise * tiers + 6.5, 0.4), standAccent);
+      back.position.set(0, (tierRise * tiers + 6.5) / 2, startDist + tiers * tierDepth + 0.3);
+      sg.add(back);
+    }
     sg.position.set(cx, 0, cz);
     sg.rotation.y = rotY;
     group.add(sg);
@@ -147,10 +250,18 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
   addStand(0, 0, 70, -Math.PI / 2, FIELD.length / 2 + 14);
 
   const crowdCount = crowdPositions.length / 6;
-  const personGeo = new THREE.BoxGeometry(0.55, 0.9, 0.35);
+  // silhouette : buste arrondi + épaules (plus naturel qu'une boîte), tête lisse
+  const seg = quality === 'high' ? 8 : 6;
+  const torso = new THREE.CylinderGeometry(0.2, 0.25, 0.72, seg);
+  torso.translate(0, -0.06, 0);
+  const shoulders = new THREE.SphereGeometry(0.26, seg, 4, 0, Math.PI * 2, 0, Math.PI / 2);
+  shoulders.scale(1, 0.45, 0.75);
+  shoulders.translate(0, 0.3, 0);
+  const personGeo = mergeGeometries([torso.toNonIndexed(), shoulders.toNonIndexed()])!;
+  personGeo.scale(1, 1, 0.8);
   const crowdMat = new THREE.MeshLambertMaterial({ color: '#ffffff' });
   const crowd = new THREE.InstancedMesh(personGeo, crowdMat, crowdCount);
-  const heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.17, 6, 5), new THREE.MeshLambertMaterial({ color: '#ffffff' }), crowdCount);
+  const heads = new THREE.InstancedMesh(new THREE.SphereGeometry(0.15, quality === 'high' ? 10 : 7, quality === 'high' ? 8 : 5), new THREE.MeshLambertMaterial({ color: '#ffffff' }), crowdCount);
   const skins = ['#f1d3bc', '#e0b291', '#c68e68', '#9c6644', '#6f4529'];
   const crowdBase = new Float32Array(crowdCount * 3);
   const m = new THREE.Matrix4();
@@ -208,11 +319,50 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
       group.add(glow);
     }
   }
-  // Écran géant
-  const screen = new THREE.Mesh(new THREE.BoxGeometry(24, 10, 0.8), new THREE.MeshStandardMaterial({ color: '#0d1117', emissive: '#16304f', emissiveIntensity: 0.6 }));
+  // Écran géant (score en direct)
+  const sc = document.createElement('canvas');
+  sc.width = 512;
+  sc.height = 220;
+  const sctx = sc.getContext('2d')!;
+  const screenTex = new THREE.CanvasTexture(sc);
+  screenTex.colorSpace = THREE.SRGBColorSpace;
+  disposables.push(screenTex);
+  const frame = new THREE.MeshStandardMaterial({ color: '#0d1117', roughness: 0.6 });
+  const screenFace = new THREE.MeshBasicMaterial({ map: screenTex, color: new THREE.Color(1.4, 1.4, 1.4) });
+  const screen = new THREE.Mesh(new THREE.BoxGeometry(24, 10, 0.8), [frame, frame, frame, frame, screenFace, frame]);
   screen.position.set(FIELD.length / 2 + 38, 24, 0);
   screen.rotation.y = -Math.PI / 2;
   group.add(screen);
+  const legs = new THREE.Mesh(new THREE.BoxGeometry(1, 19, 1), towerMat);
+  legs.position.set(FIELD.length / 2 + 38.5, 9.5, 0);
+  group.add(legs);
+  let lastScreen = '';
+  const updateScreen = (x: { home: string; away: string; score: [number, number]; info: string }) => {
+    const key = `${x.home}|${x.away}|${x.score.join()}|${x.info}`;
+    if (key === lastScreen) return;
+    lastScreen = key;
+    const g = sctx;
+    g.fillStyle = '#05080f';
+    g.fillRect(0, 0, 512, 220);
+    g.fillStyle = home.colors.primary;
+    g.fillRect(0, 0, 256, 18);
+    g.fillStyle = away.colors.primary;
+    g.fillRect(256, 0, 256, 18);
+    g.textAlign = 'center';
+    g.textBaseline = 'middle';
+    g.fillStyle = '#ffffff';
+    g.font = '900 46px "Arial Narrow", Arial, sans-serif';
+    g.fillText(x.home, 128, 62);
+    g.fillText(x.away, 384, 62);
+    g.font = '900 96px "Arial Narrow", Arial, sans-serif';
+    g.fillText(String(x.score[0]), 128, 140);
+    g.fillText(String(x.score[1]), 384, 140);
+    g.fillStyle = '#c8ff3d';
+    g.font = '700 30px "Arial Narrow", Arial, sans-serif';
+    g.fillText(x.info, 256, 198);
+    screenTex.needsUpdate = true;
+  };
+  updateScreen({ home: home.abbr, away: away.abbr, score: [0, 0], info: GAME_NAME.toUpperCase() });
 
   return {
     group,
@@ -220,6 +370,12 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
     heads,
     crowdBase,
     crowdCount,
+    tick(dt: number) {
+      ledMats.forEach((m) => {
+        if (m.map) m.map.offset.x = (m.map.offset.x + dt * 0.04) % 1;
+      });
+    },
+    updateScreen,
     dispose() {
       group.traverse((o) => {
         const mesh = o as THREE.Mesh;
@@ -229,6 +385,7 @@ export function buildStadium(home: Team, away: Team, quality: 'low' | 'medium' |
         else mat?.dispose();
       });
       disposables.forEach((d) => d.dispose());
+      ledMats.forEach((m) => m.map?.dispose());
     },
   };
 }

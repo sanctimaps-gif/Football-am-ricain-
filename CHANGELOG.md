@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.7.0 — investisseur, accueil, qualité d'image
+
+### Ajouté
+- **Installations** (rôle d'investisseur, tous les modes de gestion) : Stade, Sièges, Boutique du club, Infirmerie,
+  Entraînement, 5 niveaux chacun ; coût en argent et en diplômes, temps de construction en semaines (une construction à
+  la fois). Effets réels : avantage à domicile (3 à 8 %, appliqué aux matchs joués et simulés), bonus de billetterie,
+  capacité, revenu hebdomadaire de la boutique, blessures plus courtes, trousses de secours, progression des joueurs.
+- **Récompenses après chaque match** de ligue (argent, diplômes, trousses de secours) ; trousse = soigne un blessé.
+- **Accueil** façon jeux mobiles : bannière d'événement (Coupe des Nations 2026), cartes Tutoriel/Académie, Carrière de
+  club (ou Reprendre), Match, TV, Boutique (Ultimate Team), Carrière d'entraîneur.
+- **Image** : gradins avec rangées de sièges, spectateurs plus détaillés, panneaux LED défilants, toits avec rampes
+  lumineuses, écran géant avec le score en direct, caméra TV plus proche de l'action.
+
 ## 0.6.0 — NFL League : vous êtes l'entraîneur
 
 ### Ajouté

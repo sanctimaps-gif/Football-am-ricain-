@@ -347,6 +347,11 @@ export class GameRenderer {
     this.updateMarkers(mc);
     this.updateParticles(dt);
     this.updateCrowd(dt);
+    if (this.stadium) {
+      this.stadium.tick(dt);
+      const st = mc.state;
+      this.stadium.updateScreen({ home: mc.teams[0].abbr, away: mc.teams[1].abbr, score: [st.score[0], st.score[1]], info: `${st.quarter <= 4 ? `QT${st.quarter}` : 'PROL.'} · ${Math.floor(mc.displayClock() / 60)}:${String(Math.floor(mc.displayClock() % 60)).padStart(2, '0')}` });
+    }
     this.updateCamera(dt, mc);
     this.draw();
   }
@@ -508,12 +513,13 @@ export class GameRenderer {
       ly = 1.3;
       lz = czs;
     } else if (this.cameraMode === 'broadcast') {
-      px = sx - cx * 4;
-      py = 15;
-      pz = -FIELD.width / 2 - 20;
+      // caméra TV : plus serrée sur l'action, s'élargit pendant les passes et coups de pied
+      px = sx - cx * 3;
+      py = 9.5 + Math.max(0, height - 9) * 0.6;
+      pz = -FIELD.width / 2 - 9 - Math.max(0, back - 12) * 0.5;
       lx = sx + cx * 3;
-      ly = 0;
-      lz = sz * 0.6;
+      ly = 0.6;
+      lz = sz * 0.65;
     } else {
       // vue arrière dynamique (style retransmission « all-22 bas »)
       lx = sx + cx * ahead;
@@ -562,6 +568,7 @@ export class GameRenderer {
     this.camera.position.set(Math.cos(a) * 75, 26, Math.sin(a) * 55);
     this.camera.lookAt(0, 0, 0);
     this.updateCrowd(dt);
+    this.stadium?.tick(dt);
     this.ball.visible = false;
     this.losLine.visible = this.fdLine.visible = this.userRing.visible = this.targetRing.visible = this.landing.visible = false;
     for (const v of this.views.values()) v.view.root.visible = false;

@@ -1,3 +1,4 @@
+import { facilityLevel, homeAdvantage, progressBuilding, SHOP_WEEKLY, STADIUM_REVENUE, withHomeAdvantage } from './facilities';
 import { DEFAULT_GAMEPLAN } from '../ai/playcaller';
 import { Rng } from '../core/rng';
 import { buildDepthChart, createDefaultTeams } from '../data/generator';
@@ -149,7 +150,7 @@ function settleGameFinances(l: League, homeId: string): void {
   if (!f) return;
   const factor = l.pyramid ? DIVISIONS[l.pyramid.level].incomeFactor : 1;
   const attendance = Math.round(factor ** 0.5 * team.stadium.capacity * Math.min(1, (0.45 + f.fanSupport / 200) * (0.85 + f.facilities.stadium * 0.04)) * Math.min(1.1, 95 / Math.max(30, f.ticketPrice)));
-  const tickets = (attendance * f.ticketPrice) / 1000;
+  const tickets = ((attendance * f.ticketPrice) / 1000) * (1 + STADIUM_REVENUE[facilityLevel(f, 'stadium')] / 100);
   const tv = 9000 * factor;
   f.cash += tickets + tv;
   f.seasonRevenue += tickets + tv;
@@ -162,10 +163,10 @@ function weeklyFinances(l: League): void {
     const f = l.finances[team.id];
     if (!f) continue;
     const payroll = team.roster.reduce((t, p) => t + p.contract.salary, 0);
-    const facilities = (f.facilities.training + f.facilities.medical + f.facilities.stadium) * 350;
+    const facilities = (f.facilities.training + f.facilities.medical + f.facilities.stadium + facilityLevel(f, 'seats') + facilityLevel(f, 'shop')) * 300;
     const cost = payroll / Math.max(1, l.weeks) + facilities;
     const factor = l.pyramid ? DIVISIONS[l.pyramid.level].incomeFactor : 1;
-    const income = ((130000 + f.fanSupport * 400) * factor) / Math.max(1, l.weeks);
+    const income = ((130000 + f.fanSupport * 400) * factor) / Math.max(1, l.weeks) + SHOP_WEEKLY[facilityLevel(f, 'shop')] * Math.sqrt(factor);
     f.cash += income - cost;
     f.seasonExpenses += cost;
     f.seasonRevenue += income;
@@ -204,7 +205,8 @@ function applyInjuries(l: League, team: Team, s: GameState): void {
 }
 
 function simulateGame(l: League, g: ScheduledGame | PlayoffGame, playoff: boolean): void {
-  const home = teamById(l, g.home);
+  // avantage à domicile selon le niveau du stade
+  const home = withHomeAdvantage(teamById(l, g.home), homeAdvantage(l, g.home));
   const away = teamById(l, g.away);
   const base = { ...DEFAULT_RULES, quarterMinutes: l.quarterMinutes };
   const s = quickSimulate(home, away, {
@@ -244,6 +246,7 @@ export function weekComplete(l: League): boolean {
 export function advanceWeek(l: League): void {
   if (!weekComplete(l)) throw new Error('Semaine non terminée');
   weeklyFinances(l);
+  if (l.phase === 'regular' || l.phase === 'playoffs') progressBuilding(l);
   for (const t of l.teams) for (const p of t.roster) if (p.injuryWeeks > 0) p.injuryWeeks--;
   for (const t of l.teams) t.depth = mergeDepth(t);
   if (l.phase === 'regular') {

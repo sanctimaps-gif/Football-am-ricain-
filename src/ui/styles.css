@@ -402,3 +402,70 @@ button { touch-action: manipulation; -webkit-touch-callout: none; }
 .sn-btn { min-height: 44px; padding: 4px 2px; font-size: 11px; }
 .sn-btn .ico { font-size: 20px; }
 .cpanel .playcards { max-height: 240px; }
+
+/* Installations (style « bâtiments du club ») */
+.installations { background: radial-gradient(120% 120% at 50% 0%, #0f3e74 0%, #08203f 55%, #061428 100%); }
+.wallet { display: flex; gap: 6px; }
+.wallet span { background: rgba(0,0,0,.45); border: 1px solid rgba(120,200,255,.35); border-radius: 999px; padding: 4px 12px; font-weight: 900; font-size: 15px; white-space: nowrap; }
+.ftabs { display: flex; gap: 0; overflow-x: auto; touch-action: pan-x; border: 1px solid rgba(255,255,255,.25); border-radius: 4px; flex: none; }
+.ftabs button { flex: 1; background: #2c2f33; padding: 8px 10px; font-weight: 900; font-size: 15px; text-transform: uppercase; white-space: nowrap; border-right: 1px solid rgba(255,255,255,.15); min-height: 42px; }
+.ftabs button small { display: block; font-size: 11px; color: var(--muted); font-weight: 700; }
+.ftabs button.on { background: linear-gradient(180deg, #19d35a, #0fa344); color: #fff; }
+.ftabs button.on small { color: #e7ffe9; }
+.fcards { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(210px, 24%); gap: 10px; overflow-x: auto; touch-action: pan-x; flex: 1; min-height: 0; padding-bottom: 4px; }
+.fcard { display: flex; flex-direction: column; background: linear-gradient(160deg, rgba(23,140,62,.92), rgba(9,70,34,.95)); border: 1px solid rgba(255,255,255,.2); min-height: 0; opacity: .78; }
+.fcard.next, .fcard.owned { opacity: 1; }
+.fc-head { background: rgba(0,0,0,.35); padding: 6px 10px; font-weight: 900; font-size: 15px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.fc-art { padding: 6px 10px 0; flex: 1; min-height: 60px; display: flex; }
+.fc-art svg { width: 100%; height: 100%; min-height: 60px; border-radius: 4px; }
+.fc-info { padding: 4px 10px; }
+.fc-row { display: flex; justify-content: space-between; gap: 6px; font-size: 13px; text-transform: uppercase; border-bottom: 1px solid rgba(255,255,255,.12); padding: 2px 0; }
+.fc-row b { background: rgba(0,0,0,.45); padding: 0 8px; font-size: 15px; }
+.fc-foot { text-align: center; font-weight: 900; font-size: 16px; padding: 8px; text-transform: uppercase; }
+.fc-foot.owned { color: #ffe14d; }
+.fc-foot.building { background: #1d3b8a; }
+.fc-foot.locked { background: rgba(0,0,0,.35); color: var(--muted); font-size: 14px; }
+.fc-foot.buy { background: #ffe500; color: #102000; width: 100%; min-height: 44px; }
+.fc-foot.buy.off { filter: grayscale(.6); opacity: .7; }
+
+/* Récompenses de fin de match */
+.rewards { align-items: center; justify-content: center; gap: 4vh; background: radial-gradient(100% 90% at 50% 20%, #12305c, #050b16); cursor: pointer; }
+.rw-title { font-size: clamp(24px, 7vh, 40px); font-weight: 900; text-transform: uppercase; letter-spacing: 1px; }
+.hexrow { display: flex; gap: 3vw; }
+.hexcard { width: clamp(120px, 20vw, 190px); aspect-ratio: 0.87; clip-path: polygon(50% 0, 100% 22%, 100% 78%, 50% 100%, 0 78%, 0 22%); background: linear-gradient(160deg, #6f8fa8, #34506a); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; animation: pop2 .45s ease-out both; }
+.hexcard:nth-child(2) { animation-delay: .12s; }
+.hexcard:nth-child(3) { animation-delay: .24s; }
+.hexcard .hv { font-size: clamp(22px, 6vh, 34px); font-weight: 900; }
+.hexcard .hl { font-size: 13px; font-weight: 900; text-transform: uppercase; }
+.hexcard .hi { font-size: clamp(30px, 9vh, 52px); margin-top: 4px; }
+.rw-tap { font-size: 18px; font-weight: 900; letter-spacing: 1px; animation: pulse 1.4s infinite; }
+@keyframes pop2 { from { transform: scale(.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+/* Accueil façon jeux mobiles de football : bannière d'événement + cartes */
+.home.is-home { background: linear-gradient(118deg, #1f9a3c 0%, #14802f 34%, #0b5bd6 34.2%, #0a3fb4 70%, #0c2f8c 100%); }
+.fl-home { display: grid; grid-template-columns: 1.25fr .72fr .72fr .72fr 1fr; grid-template-rows: 1.35fr 1fr; grid-template-areas: "hero aca aca aca car" "hero mat tv shop team"; gap: 10px; height: 100%; min-height: 250px; }
+.fl-hero { grid-area: hero; position: relative; overflow: hidden; border-radius: 16px; text-align: left; padding: 12px; background: radial-gradient(80% 60% at 60% 70%, rgba(255,214,80,.35), transparent 70%), linear-gradient(150deg, #1db14a, #0d6c2b 55%, #0a46b8 100%); box-shadow: 0 10px 30px rgba(0,0,0,.35); display: flex; flex-direction: column; }
+.fl-hero-title { font-size: clamp(20px, 5.4vh, 34px); font-weight: 900; line-height: .95; letter-spacing: 1px; background: linear-gradient(180deg, #fff6c8, #e8b923); -webkit-background-clip: text; background-clip: text; color: transparent; filter: drop-shadow(0 3px 6px rgba(0,0,0,.4)); }
+.fl-hero-title span { display: block; font-size: 1.5em; }
+.fl-trophy { flex: 1; min-height: 0; display: flex; justify-content: center; filter: drop-shadow(0 8px 16px rgba(0,0,0,.45)); animation: float 3s ease-in-out infinite; }
+.fl-go { align-self: center; background: #fff; color: #0b2f8c; font-weight: 900; font-size: clamp(16px, 4vh, 24px); padding: 6px 22px; border-radius: 10px; transform: skewX(-8deg); box-shadow: 0 4px 0 #c8ff3d; }
+@keyframes float { 50% { transform: translateY(-6px); } }
+.fl-card { position: relative; overflow: hidden; border-radius: 12px; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px; padding: 8px; box-shadow: 0 8px 22px rgba(0,0,0,.35); border: 1px solid rgba(255,255,255,.18); }
+.fl-card:active, .fl-hero:active { transform: scale(.98); }
+.fl-label { font-size: clamp(15px, 4vh, 24px); font-weight: 900; letter-spacing: .5px; line-height: 1; text-shadow: 0 2px 6px rgba(0,0,0,.35); }
+.fl-art { font-size: clamp(30px, 10vh, 64px); line-height: 1.1; filter: drop-shadow(0 6px 10px rgba(0,0,0,.35)); }
+.fl-sub { font-size: 13px; line-height: 1.15; opacity: .9; }
+.fl-academy { grid-area: aca; background: linear-gradient(115deg, transparent 0 60%, rgba(255,255,255,.12) 60% 66%, transparent 66%), linear-gradient(160deg, #5f8f12, #2f5408); }
+.fl-academy .fl-label { color: #d9ff4a; font-size: clamp(20px, 6vh, 36px); }
+.fl-career { grid-area: car; background: linear-gradient(160deg, #3a3fd6, #1a1f7a); }
+.fl-match { grid-area: mat; background: linear-gradient(160deg, #a9b2ff, #7a84e8); color: #fff; }
+.fl-tv { grid-area: tv; background: linear-gradient(160deg, #3fc6ff, #1077b8); }
+.fl-shop { grid-area: shop; background: linear-gradient(160deg, #e9c46a, #b88a2b); color: #fff; }
+.fl-team { grid-area: team; background: linear-gradient(115deg, transparent 0 55%, rgba(255,255,255,.18) 55% 62%, transparent 62%), linear-gradient(160deg, #ff3d6e, #b5123f); }
+.fl-team .fl-label { font-size: clamp(14px, 3.4vh, 20px); }
+.fl-new { position: absolute; top: 0; left: 0; background: #c8ff3d; color: #102000; font-weight: 900; font-size: 13px; padding: 3px 10px; clip-path: polygon(0 0, 100% 0, 86% 100%, 0 100%); }
+.fl-badge { position: absolute; top: 8px; right: 8px; width: 24px; height: 24px; border-radius: 50%; background: #ff2d6f; font-weight: 900; display: flex; align-items: center; justify-content: center; box-shadow: 0 0 10px #ff2d6f; }
+@media (max-height: 420px) { .fl-sub { font-size: 11px; } .fl-home { gap: 8px; } }
+.fcards { grid-auto-columns: minmax(225px, 31%); }
+.fc-row { font-size: 12px; align-items: center; }
+.fc-row b { white-space: nowrap; }

@@ -3,7 +3,7 @@ import { teamOverall } from '../../data/generator';
 import { overall } from '../../data/ratings';
 import { ALL_POSITIONS, fullName, type Position } from '../../data/types';
 import { teamInfo, advanceWeek, simulateWeek, standings, teamById, userGame, userTeam, weekComplete, recordResult } from '../../league/league';
-import { capSpace, evaluateTrade, executeTrade, extendContract, facilityCost, payroll, releasePlayer, signFreeAgent, upgradeFacility } from '../../league/market';
+import { capSpace, evaluateTrade, executeTrade, extendContract, payroll, releasePlayer, signFreeAgent, upgradeFacility } from '../../league/market';
 import { buyPlayer, saleOffer, searchPlayers, sellPlayer } from '../../league/transfers';
 import { divisionObjective, rankZone } from '../../league/pyramid';
 import { interseasonTeam, interseasonUserGame, recordInterseason, simulateInterseason } from '../../league/interseason';
@@ -21,6 +21,8 @@ import { el, esc, onAction, ovrClass } from '../dom';
 import { logoSvg } from '../logo';
 import { MainMenu } from '../screens/MainMenu';
 import { PreMatchScreen } from '../screens/PreMatchScreen';
+import { grantMatchRewards, homeAdvantage, withHomeAdvantage, facilityLevel, diplomas, kits, FACILITIES } from '../../league/facilities';
+import { InstallationsScreen, RewardScreen } from './Installations';
 import { money, playerCard, playerRow, teamLabel } from './common';
 
 type Tab = 'kit' | 'home' | 'schedule' | 'standings' | 'playoffs' | 'roster' | 'transfers' | 'market' | 'draft' | 'finance' | 'trade' | 'plan' | 'history';
@@ -161,9 +163,21 @@ export class LeagueHub implements Screen {
     const coach = l.coach && l.mode !== 'club' ? `<div class="panel" style="margin-top:8px"><b>Direction</b> · Objectif : ${l.coach.objectives.wins} victoires${l.coach.objectives.playoffs ? ' + playoffs' : ''} · Confiance ${Math.round(l.coach.security)}/100 · Réputation ${Math.round(l.coach.reputation)}/100</div>` : '';
     const career = (l.interseason ? this.interseasonPanel() : '') + (l.pyramid ? this.clubSummary() : '');
     return `<div class="row" style="align-items:stretch;gap:10px">
-      <div class="col grow">${next}${coach}${career}</div>
+      <div class="col grow">${next}${coach}${career}${this.facilitiesPanel()}</div>
       <div class="col" style="width:40%">${row && (!l.cup || l.cup.groups) ? `<div class="panel"><b>Bilan</b> : ${row.w}-${row.l}-${row.t} · PF ${row.pf} · PA ${row.pa} · ${row.streak || '—'}</div>` : ''}
       <div class="panel col"><b>Actualités</b>${l.news.slice(0, 8).map((n) => `<div style="font-size:14px">${esc(n)}</div>`).join('') || '<div class="muted">Aucune actualité.</div>'}</div></div></div>`;
+  }
+
+  /** Résumé des installations (rôle d'investisseur) avec accès à l'écran de construction. */
+  private facilitiesPanel(): string {
+    const l = this.l;
+    const f = l.finances[l.userTeamId];
+    if (!f || !(l.mode === 'coach' || l.mode === 'franchise' || l.mode === 'club')) return '';
+    const b = f.building;
+    return `<div class="panel" style="margin-top:8px"><div class="row" style="justify-content:space-between;align-items:center"><b>🏗️ Installations</b><span class="muted small">🎓 ${diplomas(f)} diplômes · 🧰 ${kits(f)} trousses</span></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin:6px 0">${FACILITIES.map((x) => `<span class="chip">${x.icon} ${esc(x.name)} ${facilityLevel(f, x.kind)}/5</span>`).join('')}</div>
+      ${b ? `<div class="muted small">Chantier : ${esc(FACILITIES.find((x) => x.kind === b.kind)!.name)} niveau ${b.level} — ${b.weeksLeft} semaine(s)</div>` : ''}
+      <button class="btn primary" data-action="installations">Gérer les installations</button></div>`;
   }
 
   private interseasonPanel(): string {
@@ -288,16 +302,13 @@ export class LeagueHub implements Screen {
     const l = this.l;
     const f = l.finances[l.userTeamId];
     const team = userTeam(l);
-    const fac = (k: 'training' | 'medical' | 'stadium', label: string, desc: string) => `<div class="setting"><label>${label} <span class="muted">(niv. ${f.facilities[k]}/5) — ${desc}</span></label>${f.facilities[k] < 5 ? `<button class="btn" data-action="upgrade:${k}">Améliorer (${money(facilityCost(f.facilities[k]))})</button>` : '<span class="chip on">Max</span>'}</div>`;
     const top = [...team.roster].sort((a, b) => b.contract.salary - a.contract.salary).slice(0, 12);
     return `<div class="row" style="align-items:flex-start;gap:12px">
       <div class="col grow">
         <div class="panel"><b>Budget</b><br>Trésorerie : ${money(f.cash)} · Masse salariale : ${money(payroll(team))} / plafond ${money(f.salaryCap)} · Espace : ${money(capSpace(l, l.userTeamId))}<br>Recettes saison : ${money(f.seasonRevenue)} · Dépenses saison : ${money(f.seasonExpenses)} · Soutien des fans : ${Math.round(f.fanSupport)}/100</div>
         <div class="setting"><label>Prix du billet : ${f.ticketPrice} $</label><div class="row"><button class="btn" data-action="ticket:-10" ${l.mode !== 'franchise' ? 'disabled' : ''}>−</button><button class="btn" data-action="ticket:10" ${l.mode !== 'franchise' ? 'disabled' : ''}>+</button></div></div>
-        ${fac('training', 'Centre d’entraînement', 'progression des joueurs')}
-        ${fac('medical', 'Centre médical', 'blessures plus courtes')}
-        ${fac('stadium', 'Stade', 'capacité et recettes')}
-        ${l.mode !== 'franchise' ? '<div class="muted" style="font-size:14px">Les installations et la billetterie se gèrent en mode Franchise.</div>' : ''}
+        ${this.facilitiesPanel()}
+        ${l.mode !== 'franchise' ? '<div class="muted" style="font-size:14px">Le prix du billet se règle en mode Investisseur (franchise).</div>' : ''}
       </div>
       <div class="col grow"><b>Contrats les plus élevés</b>${top.map((p) => playerRow(p, '', `player:${p.id}`)).join('')}</div></div>`;
   }
@@ -370,6 +381,13 @@ export class LeagueHub implements Screen {
       case 'play':
         this.playUserGame();
         return;
+      case 'installations': {
+        const app = this.app;
+        const l2 = this.l;
+        const slot = this.slot;
+        app.go(new InstallationsScreen(app, l2, () => app.go(new LeagueHub(app, l2, slot)), () => this.save()));
+        return;
+      }
       case 'simulate':
         simulateWeek(l, true);
         this.finishWeek([]);
@@ -599,39 +617,52 @@ export class LeagueHub implements Screen {
     const l = this.l;
     const g = userGame(l);
     if (!g) return;
-    const home = teamById(l, g.home);
+    // avantage à domicile selon le niveau du stade de l'équipe qui reçoit
+    const home = withHomeAdvantage(teamById(l, g.home), homeAdvantage(l, g.home));
     const away = teamById(l, g.away);
     const userSide: Side = g.home === l.userTeamId ? 0 : 1;
     const app = this.app;
     const slot = this.slot;
     const back = () => app.go(new LeagueHub(app, l, slot));
+    const cashBefore = () => l.finances[l.userTeamId]?.cash ?? 0;
+    /** Récompenses du match de l'utilisateur, puis fin de semaine. */
+    const reward = (before: number, msgs: string[]) => {
+      const score = g.score;
+      const mine = userSide;
+      const res = !score ? 'loss' : score[mine] > score[1 - mine] ? 'win' : score[mine] === score[1 - mine] ? 'tie' : 'loss';
+      const r = grantMatchRewards(l, l.userTeamId, before, res, l.seed + l.week * 97 + l.season);
+      const headline = score ? `${res === 'win' ? 'Victoire' : res === 'tie' ? 'Match nul' : 'Défaite'} ${score[0]} – ${score[1]}` : 'Fin du match';
+      app.go(new RewardScreen(app, r, headline, () => {
+        const hub = new LeagueHub(app, l, slot);
+        app.go(hub);
+        hub.finishWeek(msgs);
+      }));
+    };
     app.go(new PreMatchScreen(app, {
       home, away, userSide, context: 'league', quarterMinutes: l.quarterMinutes,
       plans: [l.plans[home.id], l.plans[away.id]],
       playoff: l.phase === 'playoffs',
       title: 'label' in g ? g.label : `Semaine ${l.week}`,
       onExit: (mc: MatchController | null, completed: boolean) => {
-        const hub = new LeagueHub(app, l, slot);
+        const before = cashBefore();
         if (completed && mc && mc.state.finished) {
           recordResult(l, g, mc.state, true);
           simulateWeek(l, false);
-          hub.finishWeek([]);
+          reward(before, []);
         } else {
           // match abandonné : défaite par forfait simulée
           simulateWeek(l, true);
-          hub.finishWeek(['Match abandonné : le résultat a été simulé.']);
+          reward(before, ['Match abandonné : le résultat a été simulé.']);
         }
-        app.go(hub);
       },
     }, {
       competition: `${l.cup ? l.cup.name : MODE_TITLES[l.mode]} · ${'label' in g ? g.label : `Semaine ${l.week}`}`,
       schedule: l.schedule,
       opponentPlan: l.plans[userSide === 0 ? away.id : home.id],
       onSimulate: () => {
-        const hub = new LeagueHub(app, l, slot);
-        app.go(hub);
+        const before = cashBefore();
         simulateWeek(l, true);
-        hub.finishWeek([]);
+        reward(before, []);
       },
       onBack: back,
     }));

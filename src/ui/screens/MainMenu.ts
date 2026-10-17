@@ -23,6 +23,16 @@ const CATEGORIES: { id: MenuCategory; icon: string; label: string; title: string
 
 let lastCategory: MenuCategory = 'home';
 
+/** Trophée doré vectoriel (bannière d'accueil). */
+function trophySvg(): string {
+  return `<svg viewBox="0 0 120 150" width="100%" height="100%"><defs><linearGradient id="gold" x1="0" x2="1"><stop offset="0" stop-color="#8a5a00"/><stop offset=".35" stop-color="#ffe27a"/><stop offset=".6" stop-color="#f0b400"/><stop offset="1" stop-color="#7a4b00"/></linearGradient></defs>
+    <path d="M30 18h60v22c0 22-12 38-30 42-18-4-30-20-30-42z" fill="url(#gold)"/>
+    <path d="M30 26c-14 0-18 8-16 16 2 9 10 15 18 17" fill="none" stroke="url(#gold)" stroke-width="6"/>
+    <path d="M90 26c14 0 18 8 16 16-2 9-10 15-18 17" fill="none" stroke="url(#gold)" stroke-width="6"/>
+    <rect x="53" y="80" width="14" height="22" fill="url(#gold)"/><path d="M38 102h44l6 16H32z" fill="url(#gold)"/><rect x="28" y="118" width="64" height="14" rx="2" fill="#3a2a10"/>
+    <ellipse cx="60" cy="40" rx="10" ry="6" fill="#7a4b00" opacity=".55"/><path d="M52 40l8-5 8 5-8 5z" fill="#fff4c2" opacity=".8"/></svg>`;
+}
+
 /** Menu principal : barre latérale de catégories, grandes cartes par mode (façon jeux mobiles de football). */
 export class MainMenu implements Screen {
   readonly el: HTMLElement;
@@ -53,11 +63,29 @@ export class MainMenu implements Screen {
         ? assistantBubble(app, `Bienvenue, coach ! Avant votre premier match, apprenons les 4 tactiques de base à l’académie (${basicsProgress(app)}). Vous ne pourrez appeler en match que les tactiques apprises.`,
           next ? `<button class="btn primary" style="margin-top:6px" data-action="lesson:${next}">▶ Commencer : ${esc(playName(next))}</button>` : '')
         : assistantBubble(app, `Vous maîtrisez ${app.profile.unlockedPlays.length} tactique${app.profile.unlockedPlays.length > 1 ? 's' : ''} sur ${LESSONS.length}. Le matchday vous attend.`);
-      return `${welcome}<div class="mcards">
-        ${resume ? this.card('resume', '▶️', `Reprendre : ${resume.title}`, `Saison ${resume.season} · semaine ${resume.week}`, 'hero') : ''}
-        ${this.card('quick', '📺', t('menu.play'), 'Choisissez deux équipes et dirigez le match depuis le banc, comme à la télévision.', resume ? '' : 'hero')}
-        ${this.card('academy', '🎓', 'Académie tactique', `Apprenez une tactique : texte, action au ralenti, question (${app.profile.unlockedPlays.length}/${LESSONS.length}).`)}
-        ${this.card('spectator', '🍿', t('menu.spectator'), 'Regardez un match entre deux équipes au hasard.')}
+      void welcome;
+      return `<div class="fl-home">
+        <button class="fl-hero" data-action="ext:nationsCup">
+          <div class="fl-hero-title">COUPE DES NATIONS<span>2026</span></div>
+          <div class="fl-trophy">${trophySvg()}</div>
+          <div class="fl-go">🏈 GO !</div>
+        </button>
+        <button class="fl-card fl-academy" data-action="${basics && next ? `lesson:${next}` : 'academy'}">
+          <span class="fl-label">${basics ? 'TUTORIEL' : 'ACADÉMIE'}</span>
+          <span class="fl-art">🎓</span>
+          <span class="fl-sub">${basics ? `Tutoriels de base ${basicsProgress(app)} — obligatoires avant le 1er match` : `${app.profile.unlockedPlays.length}/${LESSONS.length} tactiques apprises`}</span>
+          ${basics ? '<span class="fl-badge">!</span>' : ''}
+        </button>
+        <button class="fl-card fl-career" data-action="${resume ? 'resume' : 'ext:club'}">
+          ${resume ? '' : '<span class="fl-new">NEW</span>'}
+          <span class="fl-label">${resume ? 'REPRENDRE' : 'CARRIÈRE DE CLUB'}</span>
+          <span class="fl-art">${resume ? '▶️' : '🏟️'}</span>
+          <span class="fl-sub">${resume ? esc(`${resume.title} · saison ${resume.season}, semaine ${resume.week}`) : 'Entraîneur et investisseur : de la D3 à la D1'}</span>
+        </button>
+        <button class="fl-card fl-match" data-action="quick"><span class="fl-label">MATCH</span><span class="fl-art">🤝</span></button>
+        <button class="fl-card fl-tv" data-action="spectator"><span class="fl-label">TV</span><span class="fl-art">📺</span></button>
+        <button class="fl-card fl-shop" data-action="shop"><span class="fl-label">BOUTIQUE</span><span class="fl-art">🎁</span></button>
+        <button class="fl-card fl-team" data-action="ext:coach"><span class="fl-label">CARRIÈRE D’ENTRAÎNEUR</span><span class="fl-art">📋</span></button>
       </div>`;
     }
     if (this.cat === 'academy') {
@@ -76,6 +104,7 @@ export class MainMenu implements Screen {
           <input type="text" data-field="coachName" value="${esc(coach.name)}" maxlength="24" placeholder="Nom de l’entraîneur" style="margin-top:10px">
           <div class="actions"><button class="btn primary" data-action="closeEdit">OK</button></div></div></div>`
       : '';
+    this.el.classList.toggle('is-home', this.cat === 'home');
     this.el.innerHTML = `
       <nav class="sidenav">${CATEGORIES.map((c) => `<button class="sn-btn ${c.id === this.cat ? 'on' : ''}" data-action="cat:${c.id}"><span class="ico">${c.icon}</span><span>${c.label}</span>${c.id === 'academy' && needsBasics(app) ? '<i class="dot"></i>' : ''}</button>`).join('')}</nav>
       <div class="home-main">
@@ -87,7 +116,7 @@ export class MainMenu implements Screen {
             <button class="icon-btn" data-action="settings" aria-label="${t('menu.settings')}">⚙️</button>
           </div>
         </div>
-        <h2 class="cat-title">${esc(cat.title)}</h2>
+        ${this.cat === 'home' ? '' : `<h2 class="cat-title">${esc(cat.title)}</h2>`}
         <div class="scroll grow">${this.content()}</div>
       </div>${editor}`;
     const inp = this.el.querySelector('input[data-field=coachName]') as HTMLInputElement | null;
@@ -110,6 +139,7 @@ export class MainMenu implements Screen {
       return;
     }
     if (act === 'quick') return app.go(new QuickMatchSetup(app));
+    if (act === 'shop') return void import('../ut/UTHub').then(({ UTHub }) => UTHub.open(app, 'store'));
     if (act === 'settings') return app.go(new SettingsScreen(app, () => app.go(new MainMenu(app))));
     if (act === 'spectator') return this.spectator();
     if (act === 'academy') return void import('./AcademyScreen').then(({ AcademyScreen }) => app.go(new AcademyScreen(app)));

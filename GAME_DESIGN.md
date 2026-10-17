@@ -145,6 +145,11 @@ Non implémenté (exige un serveur) : Leagues avec chat, VS en temps réel, clas
 **Supprimé en 0.6** : contrôle des joueurs (joystick, boutons, commandes simplifiées), carrière de joueur (les anciennes
 sauvegardes sont converties en championnat), ancien tutoriel des commandes.
 
+**Installations** (`league/facilities.ts`, `ui/league/Installations.ts`) : Stade (avantage à domicile 3→8 %, bonus de
+billetterie), Sièges (capacité ×1 → ×1,75), Boutique du club (300 → 2 200 k$ par semaine), Infirmerie (blessures plus
+courtes, trousse après match), Entraînement (+10 → +50 % de progression). Coût en argent + diplômes, construction en
+semaines de compétition, une à la fois. Après chaque match de ligue : écran de récompenses (argent, diplômes, trousses).
+
 **Menu** : barre latérale de catégories (Accueil, Club, Compétitions, National, Académie, Défis, Femmes, UT) et grandes
 cartes par mode ; installations (entraînement, médical, stade) améliorables dans tous les modes de gestion (rôle
 d'investisseur).

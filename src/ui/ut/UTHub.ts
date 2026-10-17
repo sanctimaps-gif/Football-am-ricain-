@@ -50,12 +50,20 @@ export class UTHub implements Screen {
     this.render();
   }
 
-  static open(app: App): void {
+  static open(app: App, tab: Tab = 'home'): void {
     const saved = app.saves.loadUT(isUT);
-    if (saved) return app.go(new UTHub(app, saved));
+    if (saved) {
+      const hub = new UTHub(app, saved);
+      hub.tab = tab;
+      hub.render();
+      return app.go(hub);
+    }
     const ut = createUT('Mon Équipe');
     app.saves.saveUT(ut);
-    app.go(new UTHub(app, ut));
+    const hub = new UTHub(app, ut);
+    hub.tab = tab;
+    hub.render();
+    app.go(hub);
     void showMessage('Bienvenue dans Ultimate Team ! Vous recevez un effectif de départ, 5 000 pièces et 300 gemmes. Toutes les récompenses se gagnent en jouant : aucun achat réel.');
   }
 

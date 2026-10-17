@@ -9,7 +9,7 @@ export class SplashScreen implements Screen {
   readonly el: HTMLElement;
   constructor(app: App) {
     const [a, ...b] = GAME_NAME.split(' ');
-    this.el = el('div', 'screen splash', `<div class="logo-big">${esc(b.join(' ') || a)}<span>${esc(b.length ? a : '')}</span></div><div class="muted" style="margin-top:6px">Football américain · v${GAME_VERSION}</div><div class="tap">${t('menu.tapToStart')}</div>`);
+    this.el = el('div', 'screen splash', `<div class="logo-big">${esc(a)}<span>${esc(b.join(' '))}</span></div><div class="muted" style="margin-top:6px">Football américain · v${GAME_VERSION}</div><div class="tap">${t('menu.tapToStart')}</div>`);
     this.el.addEventListener('pointerup', async () => {
       audio.unlock();
       audio.startMusic();
