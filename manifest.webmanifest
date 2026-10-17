@@ -1,0 +1,9 @@
+{
+  "name": "NFL League",
+  "short_name": "NFL League",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#0b1220",
+  "theme_color": "#0b1220",
+  "start_url": "./"
+}
