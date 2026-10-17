@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.7.3 — correctif
+
+### Corrigé
+- Boutons **pause / reprendre / abandonner** du match (et vitesses du ralenti de l'académie) : un calque transparent
+  plein écran interceptait les appuis. Test de bout en bout ajouté avec de vrais appuis tactiles.
+
 ## 0.7.2 — schémas tactiques
 
 ### Ajouté

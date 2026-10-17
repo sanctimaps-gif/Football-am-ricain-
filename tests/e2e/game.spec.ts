@@ -116,6 +116,23 @@ test.describe('NFL League — entraîneur', () => {
     expect(errors).toEqual([]);
   });
 
+  test('boutons pause, reprendre et abandonner touchables en match (vrais appuis, pas de calque qui les masque)', async ({ page }) => {
+    await openMenu(page);
+    await unlockBasics(page);
+    await startQuickMatch(page);
+    await expect(page.locator('.cpanel [data-action^="pick:"]').first()).toBeVisible({ timeout: 150000 });
+    // locator.tap() échoue si un autre élément intercepte l'appui
+    await page.locator('[data-action=pause]').tap();
+    await expect(page.locator('[data-action=resume]')).toBeVisible();
+    expect(await page.evaluate(() => (window as any).__gd.current.mc.paused)).toBe(true);
+    await page.locator('[data-action=resume]').tap();
+    expect(await page.evaluate(() => (window as any).__gd.current.mc.paused)).toBe(false);
+    await page.locator('[data-action=pause]').tap();
+    await page.locator('[data-action=quit]').tap();
+    await page.locator('#ui > .modal [data-r="1"]').tap();
+    await expect(page.locator('.home .sidenav')).toBeVisible();
+  });
+
   test('pause et reprise sans perte d’état (spectateur)', async ({ page }) => {
     await openMenu(page);
     await tapWhen(page, '[data-action=spectator]');

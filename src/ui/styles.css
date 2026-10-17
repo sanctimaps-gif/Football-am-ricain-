@@ -490,3 +490,7 @@ button { touch-action: manipulation; -webkit-touch-callout: none; }
 @media (max-height: 420px) { .schema-body { max-height: 64vh; } }
 .tactic-legend svg { width: 26px !important; height: 10px !important; aspect-ratio: auto !important; background: none !important; border: 0 !important; flex: none; }
 .lr-diag .tactic-svg { aspect-ratio: auto; background: none; }
+/* Les calques plein écran du match laissent passer les appuis (sinon ils masquaient le bouton pause) */
+.screen.transparent.coach-match > .hud, .screen.transparent.coach-match > .commentary, .screen.transparent.lesson > .hud { pointer-events: none; }
+.coach-match .ctopright, .coach-match .ctopright * { pointer-events: auto; }
+.coach-match .ctopright { z-index: 6; }
