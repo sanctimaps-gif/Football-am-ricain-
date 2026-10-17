@@ -474,3 +474,19 @@ button { touch-action: manipulation; -webkit-touch-callout: none; }
 .lesson-caption ol { font-size: 13px; line-height: 1.25; }
 .lesson-caption .lc-result { font-size: 15px; margin: 4px 0; }
 .lesson-caption .btn { min-height: 40px; padding: 6px 12px; font-size: 15px; }
+
+/* Schéma tactique détaillé (académie, panneau d'appel) */
+.lesson-read { grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr); }
+.tactic-svg { width: 100%; height: auto; display: block; border-radius: 10px; border: 1px solid var(--line); }
+.tactic-legend { display: flex; flex-wrap: wrap; gap: 4px 12px; margin: 6px 0; font-size: 12px; color: #cfd8e3; }
+.tactic-legend .lg { display: inline-flex; align-items: center; gap: 4px; }
+.zone-sw { display: inline-block; width: 22px; height: 10px; border-radius: 50%; background: rgba(255,224,102,.3); border: 1px solid rgba(255,224,102,.7); }
+.roles h4 { margin: 6px 0 4px; text-transform: uppercase; font-size: 14px; color: var(--accent-2); }
+.roles ol { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 3px; }
+.roles li { font-size: 13px; line-height: 1.25; background: rgba(255,255,255,.04); border-radius: 6px; padding: 3px 6px; }
+.roles .rn { display: inline-block; min-width: 18px; text-align: center; border-radius: 50%; background: #0a1220; color: var(--accent); border: 1px solid var(--accent); font-size: 11px; margin-right: 2px; }
+.schema-box { width: min(980px, 94vw); max-width: 94vw; }
+.schema-body { display: grid; grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); gap: 12px; max-height: 70vh; overflow-y: auto; touch-action: pan-y; }
+@media (max-height: 420px) { .schema-body { max-height: 64vh; } }
+.tactic-legend svg { width: 26px !important; height: 10px !important; aspect-ratio: auto !important; background: none !important; border: 0 !important; flex: none; }
+.lr-diag .tactic-svg { aspect-ratio: auto; background: none; }

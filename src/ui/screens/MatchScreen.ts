@@ -12,6 +12,8 @@ import { playerImpact } from '../../rules/stats';
 import { other, type Side } from '../../rules/types';
 import { selectPersonnel } from '../../sim/personnel';
 import { lessonById, LESSONS, playName } from '../../coach/academy';
+import { buildTacticDiagram } from '../../coach/diagram';
+import { tacticDiagramHtml } from '../tacticDiagram';
 import { adviceLine, type ScoutReport } from '../../coach/scouting';
 import type { App, Screen } from '../App';
 import { assistantBubble, assistantLine, matchPlaybook, needsBasics } from '../coachUi';
@@ -511,6 +513,17 @@ export class MatchScreen implements Screen {
       this.app.settings.autoCoach = mc.autoCoach;
       this.app.saveSettings();
       this.hud.querySelector('[data-action=auto]')?.classList.toggle('on', mc.autoCoach);
+    } else if (act === 'schema' && this.selectedPlay) {
+      const l = lessonById(this.selectedPlay);
+      if (l) {
+        const m = el('div', 'modal');
+        m.style.zIndex = '30';
+        m.innerHTML = `<div class="box schema-box"><div class="row" style="justify-content:space-between;align-items:center"><h2>📐 ${esc(playName(l.id))}</h2><button class="btn" data-action="close">✕</button></div><div class="scroll schema-body">${tacticDiagramHtml(buildTacticDiagram(l, this.mc.teams[0], this.mc.teams[1]))}</div></div>`;
+        m.addEventListener('click', (e) => {
+          if ((e.target as HTMLElement).closest('[data-action=close]') || e.target === m) m.remove();
+        });
+        this.el.appendChild(m);
+      }
     } else if (act === 'academy') {
       this.toast('Les nouvelles tactiques s’apprennent à l’académie (menu principal).', 3);
     }
@@ -583,7 +596,7 @@ export class MatchScreen implements Screen {
         ${mc.state.timeouts[mc.userSide] > 0 ? `<button class="chip" data-action="timeout">⏱ ${t('hud.timeout')} (${mc.state.timeouts[mc.userSide]})</button>` : ''}</div>
       ${assistantLine(this.app, advice, `<button class="chip" data-action="suggest">Suivre</button>`)}
       <div class="call-row"><div class="row tabs">${tabs}</div>
-        ${this.selectedPlay ? `<button class="btn primary" data-action="confirm">Appeler « ${esc(selName)} »</button>` : '<span class="muted small">Choisissez une tactique ↓</span>'}</div>
+        ${this.selectedPlay ? `<span class="row" style="gap:6px">${lessonById(this.selectedPlay) ? '<button class="btn" data-action="schema">📐 Schéma</button>' : ''}<button class="btn primary" data-action="confirm">Appeler « ${esc(selName)} »</button></span>` : '<span class="muted small">Choisissez une tactique ↓</span>'}</div>
       <div class="playcards">${cards}</div>
       ${consigne}
       ${unknown ? `<div class="muted small">🔒 ${unknown} tactique${unknown > 1 ? 's' : ''} à apprendre à l’académie tactique.</div>` : ''}`;

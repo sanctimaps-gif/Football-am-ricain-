@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.7.2 — schémas tactiques
+
+### Ajouté
+- **Schéma de chaque tactique** (académie et bouton « 📐 Schéma » du panneau d'appel) : les 22 joueurs alignés comme
+  dans la simulation, flèches par mission (routes, course, remise, bloqueur de tête, blocs, blitz, charge, couverture
+  individuelle, zones défendues), légende, et **rôle de chacun** des 11 joueurs numérotés.
+
 ## 0.7.0 — investisseur, accueil, qualité d'image
 
 ### Ajouté

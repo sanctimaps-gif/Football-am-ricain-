@@ -11,6 +11,8 @@ import type { App, Screen } from '../App';
 import { assistantBubble, basicsProgress } from '../coachUi';
 import { el, esc, onAction } from '../dom';
 import { defenseDiagram, offenseDiagram } from '../playDiagram';
+import { buildTacticDiagram } from '../../coach/diagram';
+import { tacticDiagramHtml } from '../tacticDiagram';
 
 const LEVEL = ['', 'Base', 'Intermédiaire', 'Avancé'];
 
@@ -110,7 +112,7 @@ export class LessonScreen implements Screen {
       this.el.innerHTML = `
         <div class="topbar"><button class="btn ghost" data-action="back">‹ Académie</button><h1>${esc(playName(l.id))}</h1><span class="chip">${l.side === 'off' ? '⚔️ Attaque' : '🛡️ Défense'} · ${esc(l.family)} · ${LEVEL[l.level]}</span></div>
         <div class="lesson-read scroll grow">
-          <div class="lr-diag">${diagramFor(l)}</div>
+          <div class="lr-diag">${tacticDiagramHtml(buildTacticDiagram(l, this.teams[0], this.teams[1]))}</div>
           <div class="lr-text">
             <p class="lead">${esc(l.text)}</p>
             <div class="lr-box"><b>Quand l’utiliser</b><div>${esc(l.whenToUse)}</div></div>
