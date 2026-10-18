@@ -12,7 +12,8 @@ const tap = (sel) => page.evaluate((sel) => { const b = document.querySelector(s
 await page.evaluate(() => { const a = window.__gd; a.profile.unlockedPlays = ['insideZone', 'quickSlants', '43cover3', '43runStop']; a.saveProfile(); });
 await tap('[data-action="cat:challenges"]'); await page.waitForTimeout(500); await tap('[data-action="ext:challenges"]'); await page.waitForTimeout(1000); await tap('[data-action="play:drive"]');
 await page.waitForFunction(() => !!document.querySelector('.cpanel [data-action="pick:quickSlants"]'), null, { timeout: 120000, polling: 500 });
-await page.waitForTimeout(400); await tap('.cpanel [data-action="pick:quickSlants"]'); await page.waitForTimeout(300); await tap('.cpanel [data-action="confirm"]');
+await page.waitForTimeout(400); await tap('.cpanel [data-action="pick:quickSlants"]');
+await page.waitForFunction(() => !!document.querySelector('.cpanel [data-action="confirm"]'), null, { timeout: 60000, polling: 300 }); await tap('.cpanel [data-action="confirm"]');
 await page.waitForFunction(() => window.__gd.current.mc?.phase === 'PreSnap', null, { timeout: 90000, polling: 200 });
 await page.waitForTimeout(600);
 await page.screenshot({ path: `shots/gfx-${label}-${quality}-presnap.png` });

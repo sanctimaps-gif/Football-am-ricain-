@@ -11,6 +11,7 @@ import { DEFAULT_RULES, PLAYOFF_RULES, type RulesConfig } from '../../rules/conf
 import { playerImpact } from '../../rules/stats';
 import { other, type Side } from '../../rules/types';
 import { selectPersonnel } from '../../sim/personnel';
+import { CELEBRATIONS, celebrationOf } from '../../render/playerModel';
 import { lessonById, LESSONS, playName } from '../../coach/academy';
 import { buildTacticDiagram } from '../../coach/diagram';
 import { tacticDiagramHtml } from '../tacticDiagram';
@@ -224,12 +225,17 @@ export class MatchScreen implements Screen {
           audio.cheer(0.3);
           if (sim.setup.kind === 'kickoff') this.say('Coup d’envoi.');
           break;
-        case 'catch':
+        case 'catch': {
           audio.thump(1.6);
           audio.cheer(0.35);
           r.onEvent('catch', pos(e.by).x, pos(e.by).y);
           this.say(`Réception de ${nameOf(e.by)} !`);
+          const rec = sim.agents[e.by];
+          const qb = sim.agents[sim.qbIdx];
+          // bandeau TV « passeur → receveur » (passes réussies de l'attaque)
+          if (rec && qb && rec.offense && rec.idx !== qb.idx) this.lowerThird(rec.side, `#${qb.player.number} ${qb.player.lastName.toUpperCase()}`, `#${rec.player.number} ${rec.player.lastName.toUpperCase()}`);
           break;
+        }
         case 'hit':
           if (e.strength > 0.5) audio.hit(e.strength * 0.6);
           break;
@@ -253,6 +259,8 @@ export class MatchScreen implements Screen {
           this.banner('FUMBLE !', true, 1.2);
           break;
         case 'touchdown': {
+          const sc = sim.agents[e.by];
+          if (sc) this.lastScorer = { name: sc.player.lastName.toUpperCase(), celeb: CELEBRATIONS[celebrationOf(sc.player.id)] };
           const p = pos(e.by);
           r.onEvent('touchdown', p.x, p.y);
           audio.cheer(1);
@@ -278,6 +286,10 @@ export class MatchScreen implements Screen {
       const key = result.summary.key;
       const params = result.summary.params;
       this.say(key.startsWith('penalty.') ? t(key) : t(key, params as Record<string, string | number>));
+      if (tags.includes('TOUCHDOWN') && this.lastScorer) {
+        this.say(`Touchdown de ${this.lastScorer.name} ! Sa célébration : ${this.lastScorer.celeb}.`);
+        this.lastScorer = null;
+      }
       const big = ['TOUCHDOWN', 'SAFETY', 'FG_GOOD', 'TURNOVER_ON_DOWNS', 'TWO_PT_GOOD', 'GAME_OVER'];
       const shown = tags.find((x) => big.includes(x)) ?? tags.find((x) => ['FIRST_DOWN', 'FG_NO_GOOD', 'XP_GOOD', 'XP_NO_GOOD', 'TWO_PT_FAILED', 'INCOMPLETE', 'TOUCHBACK', 'FAIR_CATCH'].includes(x));
       if (shown) this.banner(t(`tag.${shown}`), big.includes(shown), big.includes(shown) ? 2.4 : 1.3);
@@ -328,6 +340,18 @@ export class MatchScreen implements Screen {
   }
 
   private lastPriority: string | null = null;
+  private lastScorer: { name: string; celeb: string } | null = null;
+  private lowerEl: HTMLElement | null = null;
+  private lowerTimer = 0;
+
+  /** Bandeau en bas d'écran façon retransmission : « #12 PASSEUR ➜ #81 RECEVEUR ». */
+  private lowerThird(side: Side, from: string, to: string): void {
+    this.lowerEl?.remove();
+    const tm = this.mc.teams[side];
+    this.lowerEl = el('div', 'lowerthird', `<span class="lt-team" style="background:${tm.colors.primary}">${esc(tm.abbr)}</span><span class="lt-txt">${esc(from)} <b>➜</b> ${esc(to)}</span>`);
+    this.el.appendChild(this.lowerEl);
+    this.lowerTimer = 3.2;
+  }
 
   // ———————————————————— Boucle ————————————————————
 
@@ -344,6 +368,10 @@ export class MatchScreen implements Screen {
     if (this.bannerEl && (this.bannerTimer -= dt) <= 0) {
       this.bannerEl.remove();
       this.bannerEl = null;
+    }
+    if (this.lowerEl && (this.lowerTimer -= dt) <= 0) {
+      this.lowerEl.remove();
+      this.lowerEl = null;
     }
     if (this.toastEl && (this.toastTimer -= dt) <= 0) {
       this.toastEl.remove();

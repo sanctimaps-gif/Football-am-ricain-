@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.8.0 — présentation télé et célébrations
+
+### Ajouté
+- **12 célébrations de touchdown**, chaque joueur a la sienne (moulinet, poing rageur, l'avion, salto arrière, salut
+  militaire, danse, biceps, genou à terre, bras au ciel, toupie, spike, saut groupé) ; les coéquipiers proches
+  célèbrent aussi, chacun à sa façon ; le commentaire annonce la célébration du marqueur.
+- Inspirées de retransmissions : **tentative et distance peintes sur la pelouse** avant le snap (« 2E & 10 », pastille
+  aux couleurs de l'attaque), **bandeau passeur → receveur** après chaque passe réussie.
+
 ## 0.7.3 — correctif
 
 ### Corrigé

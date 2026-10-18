@@ -116,9 +116,23 @@ export interface Pose {
   thighL: number; thighR: number; kneeL: number; kneeR: number;
   armLz: number; armRz: number; armLx: number; armRx: number; elbowL: number; elbowR: number;
   bob: number; headPitch: number; roll: number; lean: number; crouch: number; down: number;
+  /** Célébrations : salto arrière (rotation autour de l'axe latéral, en radians, positif = vers l'arrière), pirouette (axe vertical), saut (m). */
+  flip: number; spin: number; jump: number;
 }
 
-export function computePose(action: AnimAction, actionTime: number, speed: number, stride: number, lineman: boolean, hasBall: boolean): Pose {
+/** Célébrations de touchdown : chaque joueur a la sienne (choisie de façon stable à partir de son identifiant). */
+export const CELEBRATIONS = [
+  'le moulinet', 'le poing rageur', 'l’avion', 'le salto arrière', 'le salut militaire', 'la danse',
+  'les biceps', 'le genou à terre', 'les bras au ciel', 'la toupie', 'le spike', 'le saut groupé',
+] as const;
+
+export function celebrationOf(playerId: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < playerId.length; i++) h = Math.imul(h ^ playerId.charCodeAt(i), 16777619);
+  return (h >>> 0) % CELEBRATIONS.length;
+}
+
+export function computePose(action: AnimAction, actionTime: number, speed: number, stride: number, lineman: boolean, hasBall: boolean, celeb = 0): Pose {
     const run = Math.min(1, speed / 7);
     const phase = stride * Math.PI;
     let targetLean = 0;
@@ -130,6 +144,9 @@ export function computePose(action: AnimAction, actionTime: number, speed: numbe
     let bob = 0;
     let headPitch = 0;
     let bodyRoll = 0;
+    let flip = 0;
+    let spin = 0;
+    let jump = 0;
     switch (action) {
       case 'stance': {
         targetCrouch = lineman ? 0.42 : 0.25;
@@ -225,12 +242,78 @@ export function computePose(action: AnimAction, actionTime: number, speed: numbe
         break;
       }
       case 'celebrate': {
-        const t = actionTime * 6;
-        bob = Math.max(0, Math.sin(t)) * 0.35;
-        armLz = 2.9 + Math.sin(t) * 0.2; armRz = 2.9 - Math.sin(t) * 0.2;
-        armLx = 0.4; armRx = -0.4; elbowL = -0.2; elbowR = -0.2;
-        thighL = 0.2; thighR = -0.1; kneeL = Math.max(0, Math.sin(t)) * 0.8; kneeR = kneeL;
-        headPitch = 0.35;
+        const T = actionTime;
+        const hop = (f: number) => Math.max(0, Math.sin(T * f));
+        headPitch = 0.3;
+        switch (celeb) {
+          case 0: { // moulinet : un bras tourne en grand cercle, petits pas sautillés
+            armRz = (T * 9) % (Math.PI * 2); elbowR = -0.1;
+            armLz = 0.6; armLx = 0.5; elbowL = -1.2;
+            bob = hop(9) * 0.12; thighL = hop(9) * 0.5; kneeL = thighL;
+            break;
+          }
+          case 1: { // poing rageur : saute et frappe l'air du poing
+            const pump = Math.sin(T * 7);
+            armRz = 2.3 + pump * 0.6; elbowR = -0.4 - Math.max(0, pump) * 1.2;
+            armLz = 0.5; elbowL = -1.4; jump = hop(3.5) * 0.45; kneeL = kneeR = jump * 1.6; thighL = thighR = jump * 0.9;
+            headPitch = 0.5;
+            break;
+          }
+          case 2: { // l'avion : bras écartés à l'horizontale, s'incline d'un côté à l'autre en courant
+            armLz = 0.2; armRz = 0.2; armLx = 1.5; armRx = -1.5; elbowL = elbowR = 0;
+            bodyRoll = Math.sin(T * 2.4) * 0.35; spin = Math.sin(T * 1.2) * 0.6;
+            thighL = Math.sin(T * 10) * 0.5; thighR = -thighL; kneeL = Math.max(0, -thighL); kneeR = Math.max(0, thighL);
+            break;
+          }
+          case 3: { // salto arrière toutes les 2 s
+            const c = (T % 2) / 2;
+            if (c < 0.25) { targetCrouch = 0.5; armLz = armRz = -0.6; }
+            else if (c < 0.7) { const f = (c - 0.25) / 0.45; flip = f * Math.PI * 2; jump = Math.sin(f * Math.PI) * 1.1; thighL = thighR = 1.6; kneeL = kneeR = 2.2; armLz = armRz = 1.2; }
+            else { armLz = armRz = 2.9; armLx = 0.5; armRx = -0.5; elbowL = elbowR = -0.1; }
+            break;
+          }
+          case 4: { // salut militaire, immobile
+            armRz = 2.1; armRx = -0.9; elbowR = -2.5; armLz = 0.05; elbowL = -0.1; headPitch = 0;
+            break;
+          }
+          case 5: { // la danse : hanches qui ondulent, bras qui alternent
+            bodyRoll = Math.sin(T * 6) * 0.25; bob = hop(12) * 0.06;
+            armLz = 1.2 + Math.sin(T * 6) * 0.9; armRz = 1.2 - Math.sin(T * 6) * 0.9; elbowL = elbowR = -1.3;
+            kneeL = 0.4 + Math.sin(T * 6) * 0.3; kneeR = 0.4 - Math.sin(T * 6) * 0.3; thighL = kneeL * 0.5; thighR = kneeR * 0.5; spin = Math.sin(T * 1.5) * 0.4;
+            break;
+          }
+          case 6: { // les biceps : bras repliés, buste en arrière, cri
+            armLz = 0.5; armRz = 0.5; armLx = 1.5; armRx = -1.5; elbowL = elbowR = -2.3 + Math.sin(T * 4) * 0.15;
+            targetLean = -0.25; targetCrouch = 0.15; headPitch = 0.6;
+            break;
+          }
+          case 7: { // genou à terre, un bras vers le ciel
+            targetCrouch = 0.45; thighL = 1.4; kneeL = 1.5; thighR = -0.2; kneeR = 2.3;
+            armRz = 2.9; elbowR = -0.05; armLz = 0.4; elbowL = -0.6; headPitch = 0.55;
+            break;
+          }
+          case 8: { // les bras au ciel, marche lente
+            armLz = armRz = 3.0; armLx = 0.25; armRx = -0.25; elbowL = elbowR = -0.05;
+            thighL = Math.sin(T * 4) * 0.3; thighR = -thighL; headPitch = 0.7;
+            break;
+          }
+          case 9: { // la toupie : pirouette bras écartés
+            spin = T * 7; armLz = armRz = 0.2; armLx = 1.5; armRx = -1.5; elbowL = elbowR = -0.1;
+            thighL = 0.3; kneeL = 0.6; bob = hop(14) * 0.05;
+            break;
+          }
+          case 10: { // le spike : smash du ballon puis poitrine bombée
+            const c = Math.min(1, T / 0.6);
+            armRz = 3.0 - c * 3.6; elbowR = -0.2; armLz = 0.8; elbowL = -1;
+            targetLean = c * 0.4 - (T > 0.8 ? 0.6 : 0); headPitch = T > 0.8 ? 0.6 : 0.1;
+            break;
+          }
+          default: { // saut groupé répété
+            jump = hop(3.2) * 0.7; thighL = thighR = jump * 2.2; kneeL = kneeR = jump * 3.0;
+            armLz = armRz = 2.6; armLx = 0.6; armRx = -0.6; elbowL = elbowR = -0.4;
+            break;
+          }
+        }
         break;
       }
       case 'kneel': {
@@ -246,7 +329,7 @@ export function computePose(action: AnimAction, actionTime: number, speed: numbe
         break;
       }
     }
-  return { thighL, thighR, kneeL, kneeR, armLz, armRz, armLx, armRx, elbowL, elbowR, bob, headPitch, roll: bodyRoll, lean: targetLean, crouch: targetCrouch, down };
+  return { thighL, thighR, kneeL, kneeR, armLz, armRz, armLx, armRx, elbowL, elbowR, bob, headPitch, roll: bodyRoll, lean: targetLean, crouch: targetCrouch, down, flip, spin, jump };
 }
 
 interface Limb {
@@ -277,6 +360,7 @@ export class PlayerView {
 
   constructor(player: Player, look: TeamLook, shadows: boolean) {
     this.playerId = player.id;
+    this.celeb = celebrationOf(player.id);
     const heavy = ['OT', 'OG', 'C', 'DT', 'DE'].includes(player.position);
     this.bodyScale = player.appearance.heightCm / 188;
     const female = !!player.appearance.female;
@@ -417,9 +501,11 @@ export class PlayerView {
   /**
    * Animation procédurale : course, appuis, blocage, lancer, réception, plongeon, plaquage au sol, célébration…
    */
+  readonly celeb: number;
+
   animate(action: AnimAction, actionTime: number, speed: number, stride: number, dt: number, lineman: boolean, hasBall: boolean): void {
     const k = Math.min(1, dt * 10);
-    const p = computePose(action, actionTime, speed, stride, lineman, hasBall);
+    const p = computePose(action, actionTime, speed, stride, lineman, hasBall, this.celeb);
     const { thighL, thighR, kneeL, kneeR, armLz, armRz, armLx, armRx, elbowL, elbowR, bob, headPitch } = p;
     const bodyRoll = p.roll;
     const targetLean = p.lean;
@@ -444,11 +530,20 @@ export class PlayerView {
     this.armL.lower.rotation.z = -elbowL;
     this.armR.lower.rotation.z = -elbowR;
     // corps à l'horizontale (plongeon / au sol)
-    this.body.rotation.z = -this.downBlend * (Math.PI / 2 - 0.08);
-    this.body.position.y = this.downBlend * 0.22;
-    this.body.position.x = this.downBlend * 0.75;
+    applyBodyMotion(this.body, this.downBlend, p);
     this.blob.scale.set(1 + this.downBlend * 1.3, 1, 1);
   }
+}
+
+/**
+ * Mouvement global du corps : à l'horizontale (plongeon / au sol), salto (rotation autour des hanches), pirouette, saut.
+ * Le corps regarde vers +X ; l'axe latéral est Z.
+ */
+export function applyBodyMotion(body: THREE.Object3D, downBlend: number, p: Pose): void {
+  const h = 1.0; // hauteur du pivot (hanches)
+  const th = p.flip;
+  body.rotation.set(0, p.spin, -downBlend * (Math.PI / 2 - 0.08) + th);
+  body.position.set(downBlend * 0.75 + h * Math.sin(th), downBlend * 0.22 + p.jump + (h - h * Math.cos(th)), 0);
 }
 
 /**

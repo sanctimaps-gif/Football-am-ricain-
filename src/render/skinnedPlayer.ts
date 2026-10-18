@@ -3,7 +3,7 @@ import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js'
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { Player, Team } from '../data/types';
 import type { AnimAction } from '../sim/types';
-import { computePose, numberTexture, type TeamLook } from './playerModel';
+import { applyBodyMotion, celebrationOf, computePose, numberTexture, type TeamLook } from './playerModel';
 
 /**
  * Joueur réaliste : modèle articulé « American Football Player » de blakeallen25 (Sketchfab, CC-BY 4.0),
@@ -220,6 +220,7 @@ export class SkinnedPlayerView {
   /** Aucune pièce instanciée (compatibilité avec PlayerBatcher). */
   readonly anchors: THREE.Object3D[] = [];
   playerId: string;
+  readonly celeb: number;
   private body = new THREE.Group();
   private model: THREE.Object3D;
   private bones: Record<string, THREE.Bone | null>;
@@ -235,6 +236,7 @@ export class SkinnedPlayerView {
     const a = assets!;
     void team;
     this.playerId = player.id;
+    this.celeb = celebrationOf(player.id);
     this.model = cloneSkinned(a.scene);
     const l = lookFor(a, look);
     const skin = l.skins[player.appearance.skinTone % l.skins.length];
@@ -318,7 +320,7 @@ export class SkinnedPlayerView {
   }
 
   animate(action: AnimAction, actionTime: number, speed: number, stride: number, dt: number, lineman: boolean, hasBall: boolean): void {
-    const p = computePose(action, actionTime, speed, stride, lineman, hasBall);
+    const p = computePose(action, actionTime, speed, stride, lineman, hasBall, this.celeb);
     const k = Math.min(1, dt * 10);
     this.lean += (p.lean - this.lean) * k;
     this.crouch += (p.crouch - this.crouch) * k;
@@ -354,9 +356,7 @@ export class SkinnedPlayerView {
       this.rot(B[`${side}ForeArm`], AX, elbow + 0.3);
     }
     // corps à l'horizontale (plongeon / au sol)
-    this.body.rotation.z = -this.downBlend * (Math.PI / 2 - 0.08);
-    this.body.position.y = this.downBlend * 0.22;
-    this.body.position.x = this.downBlend * 0.75;
+    applyBodyMotion(this.body, this.downBlend, p);
     this.blob.scale.set(1 + this.downBlend * 1.3, 1, 1);
   }
 }

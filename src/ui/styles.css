@@ -494,3 +494,9 @@ button { touch-action: manipulation; -webkit-touch-callout: none; }
 .screen.transparent.coach-match > .hud, .screen.transparent.coach-match > .commentary, .screen.transparent.lesson > .hud { pointer-events: none; }
 .coach-match .ctopright, .coach-match .ctopright * { pointer-events: auto; }
 .coach-match .ctopright { z-index: 6; }
+/* Bandeau TV passeur → receveur */
+.lowerthird { position: absolute; left: calc(8px + var(--safe-l)); bottom: calc(44px + var(--safe-b)); display: flex; align-items: stretch; border-radius: 6px; overflow: hidden; box-shadow: 0 4px 14px rgba(0,0,0,.45); animation: ltin .3s ease-out; pointer-events: none; z-index: 3; }
+.lowerthird .lt-team { padding: 4px 10px; font-weight: 900; font-size: 15px; display: flex; align-items: center; }
+.lowerthird .lt-txt { background: linear-gradient(90deg, #0b1d4d, #1b3f9a); padding: 4px 14px; font-weight: 900; font-size: 15px; letter-spacing: .5px; white-space: nowrap; }
+.lowerthird b { color: var(--accent); }
+@keyframes ltin { from { transform: translateX(-30px); opacity: 0; } to { transform: none; opacity: 1; } }

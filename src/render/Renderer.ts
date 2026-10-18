@@ -38,6 +38,13 @@ export class GameRenderer {
   private ball: THREE.Group;
   private ballShadow: THREE.Mesh;
   private losLine: THREE.Mesh;
+  /** Incrustation « 2E & 10 » peinte sur la pelouse avant le snap (comme à la télévision). */
+  private downGraphic: THREE.Mesh;
+  private downCanvas: HTMLCanvasElement;
+  private downTex: THREE.CanvasTexture;
+  private downKey = '';
+  private downFade = 0;
+  private downTime = 0;
   private fdLine: THREE.Mesh;
   private userRing: THREE.Mesh;
   private targetRing: THREE.Mesh;
@@ -133,6 +140,17 @@ export class GameRenderer {
     this.fdLine.rotation.x = -Math.PI / 2;
     this.fdLine.position.y = 0.035;
     this.scene.add(this.losLine, this.fdLine);
+    this.downCanvas = document.createElement('canvas');
+    this.downCanvas.width = 512;
+    this.downCanvas.height = 160;
+    this.downTex = new THREE.CanvasTexture(this.downCanvas);
+    this.downTex.colorSpace = THREE.SRGBColorSpace;
+    this.downTex.anisotropy = 4;
+    this.downGraphic = new THREE.Mesh(new THREE.PlaneGeometry(13, 4.06), new THREE.MeshBasicMaterial({ map: this.downTex, transparent: true, depthWrite: false, opacity: 0 }));
+    this.downGraphic.rotation.x = -Math.PI / 2;
+    this.downGraphic.position.y = 0.04;
+    this.downGraphic.renderOrder = 2;
+    this.scene.add(this.downGraphic);
 
     const ring = (color: string, r: number) => {
       const m = new THREE.Mesh(new THREE.RingGeometry(r * 0.78, r, 32), new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide }));
@@ -397,6 +415,51 @@ export class GameRenderer {
     this.ballShadow.visible = bz > 0.3;
   }
 
+  /** Tentative et distance peintes sur la pelouse, derrière la ligne de mêlée côté caméra, avec le logo de l'attaque. */
+  private updateDownGraphic(mc: MatchController, los: number, dir: number): void {
+    const s = mc.state;
+    const show = (mc.phase === 'PlaySelection' || mc.phase === 'PreSnap') && s.nextKind === 'scrimmage';
+    // fondu en temps réel (indépendant de la cadence d'affichage)
+    const dt = Math.min(0.1, Math.max(0, this.time - this.downTime));
+    this.downTime = this.time;
+    this.downFade = Math.max(0, Math.min(1, this.downFade + (show ? dt * 3 : -dt * 6)));
+    const mat = this.downGraphic.material as THREE.MeshBasicMaterial;
+    mat.opacity = this.downFade * 0.92;
+    this.downGraphic.visible = this.downFade > 0.01;
+    if (!this.downGraphic.visible) return;
+    const team = mc.teams[s.possession];
+    const dist = s.ballOn + s.toGo >= 100 ? 'BUT' : String(s.toGo);
+    const key = `${s.down}|${dist}|${team.id}`;
+    if (key !== this.downKey) {
+      this.downKey = key;
+      const g = this.downCanvas.getContext('2d')!;
+      g.clearRect(0, 0, 512, 160);
+      // pastille aux couleurs de l'équipe en attaque (pas de logo réel)
+      g.fillStyle = team.colors.primary;
+      g.beginPath();
+      g.arc(80, 80, 62, 0, Math.PI * 2);
+      g.fill();
+      g.lineWidth = 8;
+      g.strokeStyle = 'rgba(255,255,255,.85)';
+      g.stroke();
+      g.fillStyle = '#ffffff';
+      g.font = '900 44px "Arial Narrow", Arial, sans-serif';
+      g.textAlign = 'center';
+      g.textBaseline = 'middle';
+      g.fillText(team.abbr, 80, 84, 110);
+      g.font = '900 86px "Arial Narrow", Arial, sans-serif';
+      g.textAlign = 'left';
+      g.fillStyle = 'rgba(255,255,255,.92)';
+      g.fillText(`${s.down}${s.down === 1 ? 'ER' : 'E'} & ${dist}`, 160, 86, 340);
+      this.downTex.needsUpdate = true;
+    }
+    // côté caméra TV (z négatif), juste devant la ligne de mêlée : reste dans le cadre de la caméra qui suit le ballon
+    const [x] = toScene(los - dir * 6, 0);
+    this.downGraphic.position.x = x;
+    this.downGraphic.position.z = -6.5;
+    this.downGraphic.rotation.z = Math.PI; // haut du texte vers le fond du terrain : lisible depuis la caméra TV
+  }
+
   private updateMarkers(mc: MatchController): void {
     const s = mc.state;
     const sim = mc.sim;
@@ -409,6 +472,7 @@ export class GameRenderer {
     const fd = ownGoal + Math.min(100, s.ballOn + s.toGo) * dir;
     this.fdLine.visible = showLines && s.ballOn + s.toGo < 100;
     this.fdLine.position.x = fd - FIELD.length / 2;
+    this.updateDownGraphic(mc, los, dir);
     // anneau du joueur contrôlé
     const u = sim && sim.userAgent >= 0 ? sim.agents[sim.userAgent] : null;
     const uv = u ? this.views.get(u.player.id) : null;
@@ -466,7 +530,6 @@ export class GameRenderer {
         back = 14;
       }
       if (mc.phase === 'PlaySelection') {
-        fx = sim.losX;
         height = 12;
         back = 16;
         ahead = 3;
@@ -474,6 +537,13 @@ export class GameRenderer {
     } else {
       fx = FIELD.length / 2;
       fy = FIELD.width / 2;
+    }
+    // choix de l'action : cadrage sur la nouvelle ligne de mêlée (et non sur l'action précédente)
+    if (mc.phase === 'PlaySelection' && s.nextKind !== 'kickoff') {
+      const d = attackDir(s.possession, s.quarter);
+      fx = (d > 0 ? FIELD.goalLeft : FIELD.goalRight) + s.ballOn * d;
+      fy = mc.ballY;
+      pd = d;
     }
     // l'utilisateur en défense voit l'action depuis le côté défensif
     if (mc.userSide !== null && sim && mc.userSide !== sim.offense && sim.setup.kind !== 'kickoff' && mc.phase !== 'LivePlay' && mc.phase !== 'PassInFlight') {
