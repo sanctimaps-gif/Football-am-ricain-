@@ -3,6 +3,7 @@
 ## 0.8.0 — présentation télé et célébrations
 
 ### Ajouté
+- **Bras plus réalistes** : relief musculaire (avant-bras, biceps) repris du modèle « Male body » (Chin Eeyang, CC BY 4.0) ; bras affinés (plus de détails), squelette et couleurs inchangés.
 - **12 célébrations de touchdown**, chaque joueur a la sienne (moulinet, poing rageur, l'avion, salto arrière, salut
   militaire, danse, biceps, genou à terre, bras au ciel, toupie, spike, saut groupé) ; les coéquipiers proches
   célèbrent aussi, chacun à sa façon ; le commentaire annonce la célébration du marqueur.

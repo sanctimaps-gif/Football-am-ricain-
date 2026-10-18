@@ -37,7 +37,7 @@ export class SettingsScreen implements Screen {
           ${slider('music', t('settings.music'), s.volumes.music)}
           ${slider('sfx', t('settings.sfx'), s.volumes.sfx)}
           ${slider('crowd', t('settings.crowd'), s.volumes.crowd)}
-          <p class="muted" style="font-size:11px;line-height:1.35;margin-top:10px">Joueurs 3D (qualités moyenne et haute) : « American Football Player » par blakeallen25 (Sketchfab), licence CC BY 4.0 — modifié (allégé, logos de marque retirés, casque et couleurs d'équipe remplacés).</p>
+          <p class="muted" style="font-size:11px;line-height:1.35;margin-top:10px">Joueurs 3D (qualités moyenne et haute) : « American Football Player » par blakeallen25 (Sketchfab), licence CC BY 4.0 — modifié (allégé, logos de marque retirés, casque et couleurs d'équipe remplacés). Relief des bras d'après « Male body » par Chin Eeyang (Sketchfab), CC BY 4.0.</p>
         </div>
       </div>`;
     onAction(this.el, (act) => {
