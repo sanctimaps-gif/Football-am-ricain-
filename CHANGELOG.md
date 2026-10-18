@@ -3,6 +3,7 @@
 ## 0.8.2 — tenues
 
 ### Modifié
+- **Casque proportionné au corps** : tête et casque réduits de 14 % (environ 1/7 de la taille du joueur), coque moins longue d'avant en arrière.
 - **Casque** reconstruit : coque enveloppante qui descend sur les oreilles et la mâchoire, ouverture du visage avec
   bourrelet, grille fine devant le nez et la bouche, mentonnière, trous d'oreille, bande centrale du front à la nuque.
 - **Gants** aux couleurs du club, **bande latérale** sur le pantalon (calculée sur la section réelle de chaque jambe).

@@ -296,13 +296,15 @@ function lookFor(a: Assets, look: TeamLook): SkinnedLook {
  * Coque enveloppante qui descend sur les oreilles et la mâchoire, ouverture du visage, bande centrale.
  */
 const deg = Math.PI / 180;
+/** Échelle de la tête et du casque par rapport au corps (proportions d'un joueur casqué : environ 1/7 de la taille). */
+const HEAD_SCALE = 0.86;
 /** Rayon de la coque selon la direction (plus large vers le bas pour envelopper la mâchoire). */
 const shellPoint = (yaw: number, el: number, inflate = 0): THREE.Vector3 => {
   const R = 0.158 + inflate;
   const low = Math.max(0, -Math.sin(el));
   const r = R * (1 + 0.16 * low);
   const front = Math.max(0, Math.cos(yaw));
-  return new THREE.Vector3(Math.cos(el) * Math.cos(yaw) * r * (1.13 + 0.05 * front), Math.sin(el) * r * 1.02, Math.cos(el) * Math.sin(yaw) * r * 0.98);
+  return new THREE.Vector3(Math.cos(el) * Math.cos(yaw) * r * (1.08 + 0.05 * front), Math.sin(el) * r * 0.98, Math.cos(el) * Math.sin(yaw) * r * 0.96);
 };
 /** Ouverture du visage et bord inférieur de la coque. */
 const shellCovers = (yaw: number, el: number): boolean => {
@@ -354,17 +356,17 @@ const HELMET_GEO = (() => {
     }
     return pts;
   };
-  bars.push(tube(arc(-0.035, 0.215, 0.158, 80 * deg), 0.0055));
-  bars.push(tube(arc(-0.082, 0.21, 0.152, 74 * deg), 0.0055));
-  bars.push(tube(arc(-0.128, 0.192, 0.14, 62 * deg), 0.0055));
+  bars.push(tube(arc(-0.035, 0.208, 0.158, 80 * deg), 0.0055));
+  bars.push(tube(arc(-0.082, 0.203, 0.152, 74 * deg), 0.0055));
+  bars.push(tube(arc(-0.128, 0.186, 0.14, 62 * deg), 0.0055));
   for (const t of [-24 * deg, 0, 24 * deg]) {
     const top = t === 0 ? 0.02 : -0.035;
-    bars.push(tube([new THREE.Vector3(Math.cos(t) * 0.208, top, Math.sin(t) * 0.155), new THREE.Vector3(Math.cos(t) * 0.21, -0.082, Math.sin(t) * 0.152), new THREE.Vector3(Math.cos(t) * 0.192, -0.13, Math.sin(t) * 0.14)], 0.005, 8));
+    bars.push(tube([new THREE.Vector3(Math.cos(t) * 0.201, top, Math.sin(t) * 0.155), new THREE.Vector3(Math.cos(t) * 0.203, -0.082, Math.sin(t) * 0.152), new THREE.Vector3(Math.cos(t) * 0.186, -0.13, Math.sin(t) * 0.14)], 0.005, 8));
   }
   // attaches de la grille sur la coque (au niveau des tempes)
   for (const z of [-1, 1]) {
     const a = shellPoint(z * 62 * deg, 8 * deg, 0.002);
-    const b2 = new THREE.Vector3(Math.cos(80 * deg) * 0.215, -0.035 - 0.0098, z * Math.sin(80 * deg) * 0.158);
+    const b2 = new THREE.Vector3(Math.cos(80 * deg) * 0.208, -0.035 - 0.0098, z * Math.sin(80 * deg) * 0.158);
     bars.push(tube([a, a.clone().lerp(b2, 0.5).add(new THREE.Vector3(0.005, 0, 0)), b2], 0.006, 6));
   }
   const mask = mergeGeometries(bars.map((b) => b.toNonIndexed()))!;
@@ -388,7 +390,7 @@ const HELMET_GEO = (() => {
   // mentonnière (blanche) et trous d'oreille
   const chin = new THREE.SphereGeometry(0.04, 12, 8);
   chin.scale(0.8, 0.55, 1.15);
-  chin.translate(0.15, -0.145, 0);
+  chin.translate(0.145, -0.142, 0);
   const ear = new THREE.CylinderGeometry(0.02, 0.02, 0.012, 12);
   ear.rotateX(Math.PI / 2);
   return { shell, stripe, mask, chin, ear, rims };
@@ -594,6 +596,8 @@ export class SkinnedPlayerView {
     // casque sur l'os de la tête, dans le repère du jeu
     const head = this.bones.Head;
     if (head) {
+      // tête (et casque) à l'échelle du corps : la tête du modèle d'origine est un peu grosse
+      head.scale.setScalar(HEAD_SCALE);
       this.root.updateMatrixWorld(true);
       const holder = new THREE.Group();
       holder.quaternion.copy(head.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(this.root.getWorldQuaternion(new THREE.Quaternion())));
@@ -601,8 +605,8 @@ export class SkinnedPlayerView {
       head.add(holder);
       const helmet = buildHelmet(l);
       const hs = player.appearance.heightCm / 188;
-      helmet.scale.setScalar(hs);
-      helmet.position.set(-0.008 * hs, 0.1 * hs, 0);
+      helmet.scale.setScalar(hs * HEAD_SCALE);
+      helmet.position.set(0.006 * hs * HEAD_SCALE, 0.108 * hs * HEAD_SCALE, 0);
       helmet.traverse((o) => ((o as THREE.Mesh).isMesh && ((o as THREE.Mesh).castShadow = shadows)));
       holder.add(helmet);
       this.helmet = helmet;
