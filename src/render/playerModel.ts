@@ -24,7 +24,7 @@ export interface TeamLook {
   numberColor: string;
   jerseyColor: string;
   /** Couleurs brutes (modèle réaliste : matériaux teintés par rôle). */
-  colors: { jersey: string; trim: string; pants: string; cleats: string; socks: string; sleeve: string; helmet: string; mask: string; stripe: string };
+  colors: { jersey: string; trim: string; pants: string; cleats: string; socks: string; sleeve: string; helmet: string; mask: string; stripe: string; gloves: string };
 }
 
 export function makeTeamLook(team: Team, home: boolean): TeamLook {
@@ -56,6 +56,7 @@ export function makeTeamLook(team: Team, home: boolean): TeamLook {
       helmet: u.helmet,
       mask: u.mask ?? '#c9ced6',
       stripe: u.stripe,
+      gloves: u.gloves ?? '#1b1b1b',
     },
   };
 }

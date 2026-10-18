@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { mergeGeometries, mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { clone as cloneSkinned } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { Player, Team } from '../data/types';
@@ -15,11 +16,67 @@ import { applyBodyMotion, celebrationOf, computePose, numberTexture, type TeamLo
 const SOURCE_HEIGHT = 1.29;
 const YARD_CM = 91.44;
 
+const STRIPE_BINS = 14;
+/** Section du pantalon tranche par tranche (bande latérale centrée sur le côté extérieur de chaque jambe). */
+interface StripeData { up: THREE.Vector3; lat: THREE.Vector3; fwd: THREE.Vector3; h0: number; dh: number; bins: THREE.Vector3[]; cl: number }
+
+function computeStripe(sk: THREE.SkinnedMesh, up: THREE.Vector3, lat: THREE.Vector3, center: THREE.Vector3): StripeData {
+  const g = sk.geometry;
+  const pos = g.attributes.position;
+  const idx = g.index!;
+  const fwd = new THREE.Vector3().crossVectors(up, lat).normalize();
+  const grp = { start: 0, count: idx.count };
+  const v = new THREE.Vector3();
+  const pts: { h: number; l: number; f: number }[] = [];
+  const seen = new Set<number>();
+  for (let k = grp.start; k < grp.start + grp.count; k++) {
+    const i = idx.getX(k);
+    if (seen.has(i)) continue;
+    seen.add(i);
+    v.fromBufferAttribute(pos, i).applyMatrix4(sk.bindMatrix).sub(center);
+    pts.push({ h: v.dot(up) + center.dot(up), l: v.dot(lat) + center.dot(lat), f: v.dot(fwd) + center.dot(fwd) });
+  }
+  const cl = center.dot(lat);
+  let hMin = Infinity, hMax = -Infinity;
+  for (const p of pts) { hMin = Math.min(hMin, p.h); hMax = Math.max(hMax, p.h); }
+  // haut du pantalon : on évite la ceinture et l'entrejambe (8 % du haut)
+  const h0 = hMin, dh = ((hMax - hMin) * 0.92) / (STRIPE_BINS - 1);
+  const bins: THREE.Vector3[] = [];
+  for (const side of [1, -1]) {
+    for (let b = 0; b < STRIPE_BINS; b++) {
+      const lo = h0 + (b - 0.5) * dh, hi = h0 + (b + 0.5) * dh;
+      const sel = pts.filter((p) => p.h >= lo && p.h < hi && (p.l - cl) * side > 0.01);
+      if (sel.length < 4) { bins.push(new THREE.Vector3(0, 99, 0)); continue; }
+      const ls = sel.map((p) => (p.l - cl) * side);
+      const lMax = Math.max(...ls), lMin = Math.min(...ls);
+      // centre avant-arrière : points les plus à l'extérieur
+      const fs = sel.map((p) => p.f);
+      const fC = (Math.max(...fs) + Math.min(...fs)) / 2;
+      bins.push(new THREE.Vector3(fC, lMin + (lMax - lMin) * 0.55, 1));
+    }
+  }
+  // lissage d'une tranche à l'autre (bande droite et continue)
+  for (let pass = 0; pass < 3; pass++) {
+    for (const o of [0, STRIPE_BINS]) {
+      const prev = bins.slice(o, o + STRIPE_BINS).map((b) => b.clone());
+      for (let b = 0; b < STRIPE_BINS; b++) {
+        if (!prev[b].z) continue;
+        const nb = [prev[b - 1], prev[b], prev[b], prev[b + 1]].filter((x) => x && x.z);
+        bins[o + b].x = nb.reduce((t, x) => t + x.x, 0) / nb.length;
+        bins[o + b].y = nb.reduce((t, x) => t + x.y, 0) / nb.length;
+      }
+    }
+  }
+  return { up, lat, fwd, h0, dh, bins, cl };
+}
+
 interface Assets {
   scene: THREE.Group;
   /** Pose de référence (image 0 de l'animation d'attente) : rotations locales par os. */
   basePose: Map<string, THREE.Quaternion>;
   tex: Record<'jersey' | 'jerseyNormal' | 'pants' | 'cleats' | 'skin' | 'skinNormal', THREE.Texture>;
+  /** Articulations dans l'espace de liaison du maillage (gants, bande du pantalon). */
+  joints: { wristL: THREE.Vector3; dirL: THREE.Vector3; wristR: THREE.Vector3; dirR: THREE.Vector3; stripe: StripeData };
 }
 
 let assets: Assets | null = null;
@@ -68,7 +125,26 @@ export function loadPlayerAssets(): Promise<Assets | null> {
       scene.traverse((o) => {
         if ((o as THREE.Bone).isBone) basePose.set(o.name, o.quaternion.clone());
       });
-      assets = { scene, basePose, tex: { jersey, jerseyNormal, pants, cleats, skin, skinNormal } };
+      // articulations en position de liaison (inverse des matrices de liaison des os)
+      let sk: THREE.SkinnedMesh | null = null;
+      scene.traverse((o) => { if (!sk && (o as THREE.SkinnedMesh).isSkinnedMesh) sk = o as THREE.SkinnedMesh; });
+      const bindPos = (name: string): THREE.Vector3 => {
+        const s = sk!.skeleton;
+        const i = s.bones.findIndex((b) => new RegExp(`^mixamorig_${name}_\\d+$`).test(b.name));
+        return new THREE.Vector3().setFromMatrixPosition(s.boneInverses[i].clone().invert());
+      };
+      const wristL = bindPos('LeftHand'), wristR = bindPos('RightHand');
+      const hipL = bindPos('LeftUpLeg'), hipR = bindPos('RightUpLeg');
+      const upAxis = bindPos('Head').sub(bindPos('Hips')).normalize();
+      const latAxis = hipL.clone().sub(hipR).normalize();
+      let pantsMesh: THREE.SkinnedMesh | null = null;
+      scene.traverse((o) => { const m = o as THREE.SkinnedMesh; if (m.isSkinnedMesh && !Array.isArray(m.material) && m.material.name === 'role_pants') pantsMesh = m; });
+      const joints = {
+        wristL, dirL: wristL.clone().sub(bindPos('LeftForeArm')).normalize(),
+        wristR, dirR: wristR.clone().sub(bindPos('RightForeArm')).normalize(),
+        stripe: computeStripe(pantsMesh ?? sk!, upAxis, latAxis, hipL.clone().add(hipR).multiplyScalar(0.5)),
+      };
+      assets = { scene, basePose, tex: { jersey, jerseyNormal, pants, cleats, skin, skinNormal }, joints };
       return assets;
     } catch (e) {
       console.warn('Modèle de joueur indisponible, repli sur le modèle simplifié', e);
@@ -128,6 +204,59 @@ function paletteMaterial(colors: string[]): THREE.MeshStandardMaterial {
   return m;
 }
 
+/** Position de liaison du sommet (avant animation) transmise au fragment shader. */
+const BIND_VARYING = (decl: string, body: string) => (sh: { vertexShader: string; fragmentShader: string }) => {
+  sh.vertexShader = sh.vertexShader
+    .replace('#include <common>', `#include <common>\n${decl}`)
+    .replace('#include <begin_vertex>', `#include <begin_vertex>\n#ifdef USE_SKINNING\n vec3 bp = ( bindMatrix * vec4( position, 1.0 ) ).xyz;\n vec3 bn = normalize( mat3( bindMatrix ) * objectNormal );\n#else\n vec3 bp = position; vec3 bn = objectNormal;\n#endif\n${body}`);
+};
+
+/** Peau : les mains sont recouvertes de gants (au-delà du poignet, dans le sens de l'avant-bras). */
+function gloveSkin(a: Assets, skinColor: string, glove: string): THREE.MeshStandardMaterial {
+  const m = new THREE.MeshStandardMaterial({ color: skinColor, map: a.tex.skin, normalMap: a.tex.skinNormal, roughness: 0.62 });
+  const j = a.joints;
+  m.onBeforeCompile = (sh) => {
+    Object.assign(sh.uniforms, { wristL: { value: j.wristL }, dirL: { value: j.dirL }, wristR: { value: j.wristR }, dirR: { value: j.dirR }, gloveColor: { value: new THREE.Color(glove) } });
+    BIND_VARYING('uniform vec3 wristL; uniform vec3 dirL; uniform vec3 wristR; uniform vec3 dirR; varying float vGlove;',
+      'vGlove = max( smoothstep( -0.002, 0.004, dot( bp - wristL, dirL ) ), smoothstep( -0.002, 0.004, dot( bp - wristR, dirR ) ) );')(sh);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 gloveColor; varying float vGlove;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n diffuseColor.rgb = mix( diffuseColor.rgb, gloveColor * 0.9, vGlove );')
+      .replace('#include <roughnessmap_fragment>', '#include <roughnessmap_fragment>\n roughnessFactor = mix( roughnessFactor, 0.45, vGlove );');
+  };
+  m.customProgramCacheKey = () => 'skin-gloves';
+  return m;
+}
+
+/** Pantalon : bande latérale verticale (côté extérieur de chaque jambe), aux couleurs de l'équipe. */
+function pantsMaterial(a: Assets, color: string, stripe: string): THREE.MeshStandardMaterial {
+  const m = new THREE.MeshStandardMaterial({ color, map: a.tex.pants, roughness: 0.7 });
+  const j = a.joints;
+  m.onBeforeCompile = (sh) => {
+    const st = j.stripe;
+    Object.assign(sh.uniforms, { sUp: { value: st.up }, sLat: { value: st.lat }, sFwd: { value: st.fwd }, sH0: { value: st.h0 }, sDH: { value: st.dh }, sCl: { value: st.cl }, sBins: { value: st.bins }, stripeColor: { value: new THREE.Color(stripe) } });
+    BIND_VARYING('varying vec3 vBind;', 'vBind = bp;')(sh);
+    sh.fragmentShader = sh.fragmentShader.replace('#include <common>', `#include <common>
+      uniform vec3 sUp; uniform vec3 sLat; uniform vec3 sFwd; uniform float sH0; uniform float sDH; uniform float sCl; uniform vec3 sBins[${STRIPE_BINS * 2}];
+      varying vec3 vBind;
+      float stripeAt( vec3 p ) {
+        float lat = dot( p, sLat ) - sCl; float side = lat >= 0.0 ? 1.0 : -1.0; int o = lat >= 0.0 ? 0 : ${STRIPE_BINS};
+        float t = clamp( ( dot( p, sUp ) - sH0 ) / sDH, 0.0, ${STRIPE_BINS - 1}.0 );
+        int i0 = int( floor( t ) ); int i1 = min( i0 + 1, ${STRIPE_BINS - 1} ); float f = t - float( i0 );
+        vec3 b0 = sBins[0]; vec3 b1 = sBins[0];
+        for ( int i = 0; i < ${STRIPE_BINS * 2}; i ++ ) { if ( i == o + i0 ) b0 = sBins[i]; if ( i == o + i1 ) b1 = sBins[i]; }
+        vec3 bb = mix( b0, b1, f ); // x : centre avant-arrière, y : milieu latéral, z : 1 si valide
+        float fw = abs( dot( p, sFwd ) - bb.x );
+        return bb.z * ( 1.0 - smoothstep( 0.010, 0.014, fw ) ) * step( bb.y, lat * side );
+      }`);
+    sh.fragmentShader = sh.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform vec3 stripeColor;')
+      .replace('#include <map_fragment>', '#include <map_fragment>\n float vStripe = stripeAt( vBind );\n diffuseColor.rgb = mix( diffuseColor.rgb, stripeColor * ( 0.55 + 0.45 * texture2D( map, vMapUv ).r ), vStripe );');
+  };
+  m.customProgramCacheKey = () => 'pants-stripe';
+  return m;
+}
+
 function lookFor(a: Assets, look: TeamLook): SkinnedLook {
   let l = looksCache.get(look);
   if (l) return l;
@@ -135,16 +264,22 @@ function lookFor(a: Assets, look: TeamLook): SkinnedLook {
   const std = (color: string, map: THREE.Texture | null, roughness: number, metalness = 0) => new THREE.MeshStandardMaterial({ color, map, roughness, metalness });
   const materials = new Map<string, THREE.Material>();
   materials.set('role_jersey', jerseyMaterial(a, c.jersey, c.trim));
-  materials.set('role_pants', std(c.pants, a.tex.pants, 0.7));
-  materials.set('role_cleats', std(c.cleats, a.tex.cleats, 0.55));
+  materials.set('role_pants', pantsMaterial(a, c.pants, c.stripe));
+  materials.set('role_cleats', new THREE.MeshBasicMaterial({ visible: false })); // remplacés par des crampons construits par le jeu
+  const dark = new THREE.Color(c.cleats).getHSL({ h: 0, s: 0, l: 0 }).l < 0.35;
+  materials.set('cleat_upper', new THREE.MeshPhysicalMaterial({ color: c.cleats, roughness: 0.3, clearcoat: 0.9, clearcoatRoughness: 0.15 }));
+  materials.set('cleat_sole', new THREE.MeshStandardMaterial({ color: dark ? '#e8eaed' : '#17191c', roughness: 0.7 }));
+  materials.set('cleat_accent', new THREE.MeshStandardMaterial({ color: c.trim, roughness: 0.5 }));
+  materials.set('cleat_stud', new THREE.MeshStandardMaterial({ color: '#202226', roughness: 0.5, metalness: 0.3 }));
   void std;
   // petites pièces unies : un seul matériau, couleur lue dans une palette selon l'index codé dans COLOR_0
   materials.set('role_palette', paletteMaterial([c.socks, c.sleeve, '#f2f2f2', '#151515', c.trim, c.mask, c.helmet, c.stripe]));
-  materials.set('role_helmet', new THREE.MeshPhysicalMaterial({ color: c.helmet, roughness: 0.3, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.06 }));
+  materials.set('role_helmet', new THREE.MeshPhysicalMaterial({ color: c.helmet, roughness: 0.3, metalness: 0.15, clearcoat: 1, clearcoatRoughness: 0.06, side: THREE.DoubleSide }));
+  materials.set('helmet_chin', new THREE.MeshStandardMaterial({ color: '#eceef0', roughness: 0.6 }));
   materials.set('helmet_mask', new THREE.MeshStandardMaterial({ color: c.mask, roughness: 0.35, metalness: 0.55 }));
   materials.set('helmet_stripe', new THREE.MeshStandardMaterial({ color: c.stripe, roughness: 0.4 }));
   materials.set('helmet_pad', new THREE.MeshStandardMaterial({ color: '#1a1c20', roughness: 0.85 }));
-  const skins = SKIN.map((s) => new THREE.MeshStandardMaterial({ color: s, map: a.tex.skin, normalMap: a.tex.skinNormal, roughness: 0.62 }));
+  const skins = SKIN.map((s) => gloveSkin(a, s, c.gloves));
   const visorOn = new THREE.MeshStandardMaterial({ color: '#0b0d12', roughness: 0.08, metalness: 0.9, transparent: true, opacity: 0.85 });
   const visorOff = new THREE.MeshBasicMaterial({ visible: false });
   l = { materials, skins, visorOn, visorOff };
@@ -156,46 +291,201 @@ function lookFor(a: Assets, look: TeamLook): SkinnedLook {
  * Casque construit par le jeu (le casque d'origine du modèle ne se simplifie pas proprement) :
  * coque vernie, bande centrale, grille à 3 barres, protège-oreilles. Repère : avant = +X, haut = +Y, unité = yard.
  */
-const HELMET_GEO = (() => {
-  const shell = new THREE.SphereGeometry(0.165, 22, 16, 0, Math.PI * 2, 0, Math.PI * 0.64);
-  shell.scale(1.12, 1.0, 0.98);
-  // bord découpé au niveau du visage : on aplatit l'avant bas de la coque
-  const pos = shell.attributes.position;
-  for (let i = 0; i < pos.count; i++) {
-    const x = pos.getX(i), y = pos.getY(i);
-    if (x > 0.06 && y < 0.03) pos.setY(i, Math.max(y, 0.03 - (x - 0.06) * 0.1));
+/**
+ * Casque moderne (repère du casque : +X = avant, +Y = haut, Z = latéral, origine au centre de la tête).
+ * Coque enveloppante qui descend sur les oreilles et la mâchoire, ouverture du visage, bande centrale.
+ */
+const deg = Math.PI / 180;
+/** Rayon de la coque selon la direction (plus large vers le bas pour envelopper la mâchoire). */
+const shellPoint = (yaw: number, el: number, inflate = 0): THREE.Vector3 => {
+  const R = 0.158 + inflate;
+  const low = Math.max(0, -Math.sin(el));
+  const r = R * (1 + 0.16 * low);
+  const front = Math.max(0, Math.cos(yaw));
+  return new THREE.Vector3(Math.cos(el) * Math.cos(yaw) * r * (1.13 + 0.05 * front), Math.sin(el) * r * 1.02, Math.cos(el) * Math.sin(yaw) * r * 0.98);
+};
+/** Ouverture du visage et bord inférieur de la coque. */
+const shellCovers = (yaw: number, el: number): boolean => {
+  const a = Math.abs(yaw);
+  // bord inférieur : bas sur les joues, plus haut à l'arrière (nuque)
+  const bottom = a < 100 * deg ? -58 * deg : -58 * deg + ((a - 100 * deg) / (80 * deg)) * 24 * deg;
+  if (el < bottom) return false;
+  // ouverture : du sourcil au menton, élargie aux yeux
+  const brow = 16 * deg - Math.max(0, a - 40 * deg) * 0.6;
+  if (a < 58 * deg && el < brow) return false;
+  return true;
+};
+function shellGeometry(nYaw = 90, nEl = 48, inflate = 0, test: (yaw: number, el: number) => boolean = shellCovers): THREE.BufferGeometry {
+  const pos: number[] = [];
+  const el0 = -70 * deg;
+  const el1 = 90 * deg;
+  const cell = (i: number, j: number) => [(-Math.PI + (i / nYaw) * Math.PI * 2), el0 + (j / nEl) * (el1 - el0)];
+  for (let i = 0; i < nYaw; i++) {
+    for (let j = 0; j < nEl; j++) {
+      const [y0, e0] = cell(i, j);
+      const [y1, e1] = cell(i + 1, j + 1);
+      if (!test((y0 + y1) / 2, (e0 + e1) / 2)) continue;
+      const p00 = shellPoint(y0, e0, inflate), p10 = shellPoint(y1, e0, inflate), p01 = shellPoint(y0, e1, inflate), p11 = shellPoint(y1, e1, inflate);
+      pos.push(...p00.toArray(), ...p01.toArray(), ...p10.toArray(), ...p10.toArray(), ...p01.toArray(), ...p11.toArray());
+    }
   }
-  shell.computeVertexNormals();
-  const stripe = new THREE.SphereGeometry(0.168, 6, 16, -0.07, 0.14, 0.02, Math.PI * 0.55);
-  stripe.scale(1.12, 1.0, 0.98);
-  const bar = new THREE.TorusGeometry(0.15, 0.011, 5, 16, Math.PI * 0.9);
-  const vbar = new THREE.CylinderGeometry(0.01, 0.01, 0.13, 5);
-  const ear = new THREE.CylinderGeometry(0.05, 0.05, 0.02, 12);
-  return { shell, stripe, bar, vbar, ear };
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  const merged = mergeVertices(g, 1e-5);
+  merged.computeVertexNormals();
+  return merged;
+}
+const tube = (pts: THREE.Vector3[], r: number, seg = 24) => new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), seg, r, 6, false);
+const HELMET_GEO = (() => {
+  const shell = shellGeometry();
+  // bande centrale : fine tranche de la coque, du front à la nuque
+  const stripe = shellGeometry(180, 48, 0.0016, (yaw, el) => {
+    const a = Math.abs(yaw);
+    const onTop = (a < 6 * deg || a > 174 * deg) && shellCovers(yaw, el) && el > (a < 90 * deg ? 18 * deg : -20 * deg);
+    return onTop;
+  });
+  // grille : barres horizontales qui s'accrochent aux côtés de la coque, montants verticaux
+  const bars: THREE.BufferGeometry[] = [];
+  const arc = (y: number, front: number, side: number, span: number) => {
+    const pts: THREE.Vector3[] = [];
+    for (let k = 0; k <= 12; k++) {
+      const t = -span + (k / 12) * span * 2;
+      pts.push(new THREE.Vector3(Math.cos(t) * front, y - (1 - Math.cos(t)) * 0.012, Math.sin(t) * side));
+    }
+    return pts;
+  };
+  bars.push(tube(arc(-0.035, 0.215, 0.158, 80 * deg), 0.0055));
+  bars.push(tube(arc(-0.082, 0.21, 0.152, 74 * deg), 0.0055));
+  bars.push(tube(arc(-0.128, 0.192, 0.14, 62 * deg), 0.0055));
+  for (const t of [-24 * deg, 0, 24 * deg]) {
+    const top = t === 0 ? 0.02 : -0.035;
+    bars.push(tube([new THREE.Vector3(Math.cos(t) * 0.208, top, Math.sin(t) * 0.155), new THREE.Vector3(Math.cos(t) * 0.21, -0.082, Math.sin(t) * 0.152), new THREE.Vector3(Math.cos(t) * 0.192, -0.13, Math.sin(t) * 0.14)], 0.005, 8));
+  }
+  // attaches de la grille sur la coque (au niveau des tempes)
+  for (const z of [-1, 1]) {
+    const a = shellPoint(z * 62 * deg, 8 * deg, 0.002);
+    const b2 = new THREE.Vector3(Math.cos(80 * deg) * 0.215, -0.035 - 0.0098, z * Math.sin(80 * deg) * 0.158);
+    bars.push(tube([a, a.clone().lerp(b2, 0.5).add(new THREE.Vector3(0.005, 0, 0)), b2], 0.006, 6));
+  }
+  const mask = mergeGeometries(bars.map((b) => b.toNonIndexed()))!;
+  // bourrelet le long de l'ouverture du visage et du bord inférieur (masque l'escalier de la découpe)
+  const rimPts: THREE.Vector3[] = [];
+  const brow = (yaw: number) => 16 * deg - Math.max(0, Math.abs(yaw) - 40 * deg) * 0.6;
+  const yawEdge = 58 * deg;
+  for (let k = 0; k <= 10; k++) rimPts.push(shellPoint(yawEdge, -58 * deg + (k / 10) * (brow(yawEdge) + 58 * deg), 0.001));
+  for (let k = 1; k < 20; k++) { const y = yawEdge - (k / 20) * yawEdge * 2; rimPts.push(shellPoint(y, brow(y), 0.001)); }
+  for (let k = 0; k <= 10; k++) rimPts.push(shellPoint(-yawEdge, brow(-yawEdge) - (k / 10) * (brow(-yawEdge) + 58 * deg), 0.001));
+  const rim = tube(rimPts, 0.007, 80);
+  const botPts: THREE.Vector3[] = [];
+  for (let k = 0; k <= 40; k++) {
+    const y = yawEdge + (k / 40) * (Math.PI * 2 - yawEdge * 2);
+    const a = Math.abs(((y + Math.PI) % (Math.PI * 2)) - Math.PI);
+    const bottom = a < 100 * deg ? -58 * deg : -58 * deg + ((a - 100 * deg) / (80 * deg)) * 24 * deg;
+    botPts.push(shellPoint(y, bottom + 1.5 * deg, 0.001));
+  }
+  const bottomRim = tube(botPts, 0.006, 80);
+  const rims = mergeGeometries([rim.toNonIndexed(), bottomRim.toNonIndexed()])!;
+  // mentonnière (blanche) et trous d'oreille
+  const chin = new THREE.SphereGeometry(0.04, 12, 8);
+  chin.scale(0.8, 0.55, 1.15);
+  chin.translate(0.15, -0.145, 0);
+  const ear = new THREE.CylinderGeometry(0.02, 0.02, 0.012, 12);
+  ear.rotateX(Math.PI / 2);
+  return { shell, stripe, mask, chin, ear, rims };
 })();
 
 function buildHelmet(l: SkinnedLook): THREE.Group {
   const g = new THREE.Group();
-  const shellMat = l.materials.get('role_helmet')!;
-  const mask = l.materials.get('helmet_mask')!;
-  g.add(new THREE.Mesh(HELMET_GEO.shell, shellMat));
+  g.add(new THREE.Mesh(HELMET_GEO.shell, l.materials.get('role_helmet')!));
   g.add(new THREE.Mesh(HELMET_GEO.stripe, l.materials.get('helmet_stripe')!));
-  for (const [y, r] of [[-0.03, 1], [-0.075, 0.92], [-0.115, 0.8]] as [number, number][]) {
-    const b = new THREE.Mesh(HELMET_GEO.bar, mask);
-    b.rotation.set(Math.PI / 2, 0, -Math.PI / 2 + Math.PI * 0.05);
-    b.scale.set(r, r, 1);
-    b.position.set(0.035, y, 0);
-    g.add(b);
-  }
-  const v = new THREE.Mesh(HELMET_GEO.vbar, mask);
-  v.position.set(0.18, -0.07, 0);
-  g.add(v);
+  g.add(new THREE.Mesh(HELMET_GEO.mask, l.materials.get('helmet_mask')!));
+  g.add(new THREE.Mesh(HELMET_GEO.rims, l.materials.get('helmet_pad')!));
+  g.add(new THREE.Mesh(HELMET_GEO.chin, l.materials.get('helmet_chin')!));
   for (const z of [-1, 1]) {
     const e = new THREE.Mesh(HELMET_GEO.ear, l.materials.get('helmet_pad')!);
-    e.rotation.x = Math.PI / 2;
-    e.position.set(0.0, -0.03, z * 0.16);
+    e.position.copy(shellPoint(z * 90 * deg, -10 * deg, 0.002));
     g.add(e);
   }
+  return g;
+}
+
+/** Contour du pied vu de dessus (x : avant, y : latéral), talon à x = -heel, pointe à x = toe. */
+function footShape(heel: number, toe: number, width: number): THREE.Shape {
+  const sh = new THREE.Shape();
+  const n = 28;
+  for (let i = 0; i <= n; i++) {
+    const t = (i / n) * Math.PI * 2;
+    const c = Math.cos(t), s = Math.sin(t);
+    const front = c > 0;
+    const x = front ? c * toe : c * heel;
+    // avant-pied plus large, talon arrondi plus étroit, pointe légèrement effilée
+    const wz = width * (front ? 1 - 0.25 * Math.pow(c, 4) : 0.78 + 0.1 * (1 + c));
+    const y = s * wz;
+    if (i === 0) sh.moveTo(x, y); else sh.lineTo(x, y);
+  }
+  return sh;
+}
+
+/**
+ * Crampons construits par le jeu : tige vernie qui descend vers la pointe, semelle contrastée, crampons, bande
+ * décorative aux couleurs du club (pas de logo). Origine au sol sous la cheville, avant = +X, haut = +Y.
+ */
+const cleatCache = new Map<string, { upper: THREE.BufferGeometry; sole: THREE.BufferGeometry; studs: THREE.BufferGeometry; accent: THREE.BufferGeometry }>();
+function buildCleat(l: SkinnedLook, ankle: number, toeFwd: number): THREE.Group {
+  const key = `${ankle.toFixed(3)}|${toeFwd.toFixed(3)}`;
+  let geo = cleatCache.get(key);
+  if (!geo) {
+    const toe = toeFwd * 1.5;
+    const heel = toeFwd * 0.5;
+    const width = toeFwd * 0.38;
+    const soleH = ankle * 0.16;
+    const shape = footShape(heel, toe, width);
+    const sole = new THREE.ExtrudeGeometry(shape, { depth: soleH, bevelEnabled: true, bevelThickness: soleH * 0.25, bevelSize: soleH * 0.25, bevelSegments: 2, curveSegments: 6 });
+    sole.rotateX(-Math.PI / 2);
+    // tige : contour un peu plus étroit, hauteur qui diminue vers la pointe, resserrée vers le haut
+    const upperH = ankle * 1.12;
+    const upper = new THREE.ExtrudeGeometry(footShape(heel * 0.96, toe * 0.97, width * 0.94), { depth: upperH, steps: 6, bevelEnabled: true, bevelThickness: upperH * 0.12, bevelSize: width * 0.18, bevelSegments: 3, curveSegments: 8 });
+    upper.rotateX(-Math.PI / 2);
+    const p = upper.attributes.position;
+    for (let i = 0; i < p.count; i++) {
+      const x = p.getX(i), y = p.getY(i), z = p.getZ(i);
+      const u = Math.max(0, Math.min(1, y / upperH));
+      // profil : col à la cheville, descente progressive jusqu'à la pointe
+      const fx = Math.max(0, (x - heel * 0.2) / (toe - heel * 0.2));
+      const hMax = 1 - 0.78 * Math.pow(fx, 0.6);
+      const ny = y * hMax;
+      // resserrement vers le haut (cou-de-pied) et autour de la cheville
+      const pinch = 1 - 0.5 * Math.pow(u, 1.2) * (1 - 0.7 * fx);
+      const cx = heel * -0.05;
+      p.setXYZ(i, cx + (x - cx) * (1 - 0.32 * Math.pow(u, 1.3) * (1 - fx)), ny + soleH * 1.1, z * pinch);
+    }
+    upper.computeVertexNormals();
+    // crampons sous la semelle
+    const studs: THREE.BufferGeometry[] = [];
+    const stud = new THREE.CylinderGeometry(width * 0.13, width * 0.18, soleH * 0.9, 8);
+    for (const [fx, fz] of [[0.8, 0.45], [0.8, -0.45], [0.45, 0.6], [0.45, -0.6], [0.95, 0], [-0.55, 0.45], [-0.55, -0.45]]) {
+      const g = stud.clone();
+      g.translate(fx > 0 ? fx * toe * 0.85 : fx * heel * 1.2, -soleH * 0.4, fz * width * 0.85);
+      studs.push(g.toNonIndexed());
+    }
+    // bande décorative : ruban oblique sur les deux côtés de la tige (du milieu du pied vers le talon)
+    const strips: THREE.BufferGeometry[] = [];
+    for (const zs of [-1, 1]) {
+      const curve = new THREE.CatmullRomCurve3([
+        new THREE.Vector3(toe * 0.45, soleH * 1.6, zs * width * 0.98),
+        new THREE.Vector3(toe * 0.1, upperH * 0.42, zs * width * 1.0),
+        new THREE.Vector3(-heel * 0.5, upperH * 0.62, zs * width * 0.86),
+      ]);
+      strips.push(new THREE.TubeGeometry(curve, 16, width * 0.07, 5, false).toNonIndexed());
+    }
+    geo = { upper, sole, studs: mergeGeometries(studs)!, accent: mergeGeometries(strips)! };
+    cleatCache.set(key, geo);
+  }
+  const g = new THREE.Group();
+  g.add(new THREE.Mesh(geo.upper, l.materials.get('cleat_upper')!));
+  g.add(new THREE.Mesh(geo.sole, l.materials.get('cleat_sole')!));
+  g.add(new THREE.Mesh(geo.studs, l.materials.get('cleat_stud')!));
+  g.add(new THREE.Mesh(geo.accent, l.materials.get('cleat_accent')!));
   return g;
 }
 
@@ -283,6 +573,24 @@ export class SkinnedPlayerView {
       }
       void bp;
     }
+    // crampons sur les os des pieds (repère du jeu : avant = +X, haut = +Y)
+    for (const side of ['Left', 'Right']) {
+      const foot = this.bones[side + 'Foot'];
+      if (!foot) continue;
+      this.root.updateMatrixWorld(true);
+      const holder = new THREE.Group();
+      holder.quaternion.copy(foot.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(this.root.getWorldQuaternion(new THREE.Quaternion())));
+      holder.scale.setScalar(1 / foot.getWorldScale(new THREE.Vector3()).x);
+      foot.add(holder);
+      holder.updateMatrixWorld(true);
+      const ground = holder.worldToLocal(this.root.getWorldPosition(new THREE.Vector3())).y;
+      const toe = findBone(this.model, side + 'ToeBase');
+      const toeFwd = toe ? holder.worldToLocal(toe.getWorldPosition(new THREE.Vector3())).x : 0.12;
+      const shoe = buildCleat(l, -ground, Math.max(0.08, toeFwd));
+      shoe.position.y = ground;
+      shoe.traverse((o) => ((o as THREE.Mesh).isMesh && ((o as THREE.Mesh).castShadow = shadows)));
+      holder.add(shoe);
+    }
     // casque sur l'os de la tête, dans le repère du jeu
     const head = this.bones.Head;
     if (head) {
@@ -294,7 +602,7 @@ export class SkinnedPlayerView {
       const helmet = buildHelmet(l);
       const hs = player.appearance.heightCm / 188;
       helmet.scale.setScalar(hs);
-      helmet.position.set(0.01 * hs, 0.11 * hs, 0);
+      helmet.position.set(-0.008 * hs, 0.1 * hs, 0);
       helmet.traverse((o) => ((o as THREE.Mesh).isMesh && ((o as THREE.Mesh).castShadow = shadows)));
       holder.add(helmet);
       this.helmet = helmet;
