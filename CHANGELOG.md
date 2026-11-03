@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.4 — logo
+
+### Ajouté
+- **Logo de l'application** original (emblème rond doré, ballon et traînées rouge/bleu, ruban « NFL LEAGUE », nuit de stade) : icône d'onglet, icône d'écran d'accueil (iPhone 180 px, Android 192/512 px), écran titre. Sans blason ni logo officiel de la ligue ou des équipes, sans joueur réel.
+
 ## 0.8.2 — tenues
 
 ### Modifié
