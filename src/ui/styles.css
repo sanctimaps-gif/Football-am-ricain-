@@ -500,4 +500,4 @@ button { touch-action: manipulation; -webkit-touch-callout: none; }
 .lowerthird .lt-txt { background: linear-gradient(90deg, #0b1d4d, #1b3f9a); padding: 4px 14px; font-weight: 900; font-size: 15px; letter-spacing: .5px; white-space: nowrap; }
 .lowerthird b { color: var(--accent); }
 @keyframes ltin { from { transform: translateX(-30px); opacity: 0; } to { transform: none; opacity: 1; } }
-.splash-logo { width: min(46vh, 62vw); height: auto; filter: drop-shadow(0 10px 30px rgba(0,0,0,.6)); border-radius: 20%; }
+.splash-logo { width: min(64vh, 62vw); height: auto; filter: drop-shadow(0 10px 30px rgba(0,0,0,.6)); border-radius: 20%; }

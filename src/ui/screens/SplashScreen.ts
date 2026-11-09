@@ -9,7 +9,7 @@ export class SplashScreen implements Screen {
   readonly el: HTMLElement;
   constructor(app: App) {
     const [a, ...b] = GAME_NAME.split(' ');
-    this.el = el('div', 'screen splash', `<img class="splash-logo" src="${(globalThis as { __ASSET_BASE?: string }).__ASSET_BASE ?? './'}icon.svg" alt="${esc(GAME_NAME)}"><div class="logo-big" style="display:none">${esc(a)}<span>${esc(b.join(' '))}</span></div><div class="muted" style="margin-top:6px">Football américain · v${GAME_VERSION}</div><div class="tap">${t('menu.tapToStart')}</div>`);
+    this.el = el('div', 'screen splash', `<img class="splash-logo" src="${(globalThis as { __ASSET_BASE?: string }).__ASSET_BASE ?? './'}logo.jpg" alt="${esc(GAME_NAME)}"><div class="logo-big" style="display:none">${esc(a)}<span>${esc(b.join(' '))}</span></div><div class="muted" style="margin-top:6px">Football américain · v${GAME_VERSION}</div><div class="tap">${t('menu.tapToStart')}</div>`);
     this.el.addEventListener('pointerup', async () => {
       audio.unlock();
       audio.startMusic();

@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.8.5 — affiche-logo
+
+### Ajouté
+- **Logo façon affiche** : cinq joueurs du jeu (clubs, couleurs et numéros inventés) rendus en 3D autour de l'emblème rond, fumée rouge/bleue, projecteurs, étincelles, foule en contre-jour, lettrage métallique « NFL LEAGUE » et sous-titre « Ligue de football américain ». Écran titre et icône d'écran d'accueil ; l'emblème seul reste l'icône d'onglet.
+
 ## 0.8.4 — logo
 
 ### Ajouté

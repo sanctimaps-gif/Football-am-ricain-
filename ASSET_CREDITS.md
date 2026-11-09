@@ -24,7 +24,7 @@ Le modèle n'est utilisé qu'en qualités moyenne et haute ; en qualité basse (
 | Ballon | Primitives Three.js |
 | Logos des équipes et de la franchise créée | SVG générés à partir de formes et d'un glyphe (`src/ui/logo.ts`) |
 | Sons (foule, sifflet, impacts, ballon, fanfare, interface, musique) | Synthèse Web Audio (`src/audio/AudioEngine.ts`) |
-| Icône et logo | SVG original (`public/icon.svg`, rendus PNG `public/icon-*.png`) — aucun logo officiel |
+| Icône et logo | Emblème SVG original (`public/icon.svg`) ; affiche `public/logo.jpg` et icônes `public/icon-*.png` composées à partir des joueurs 3D du jeu — aucun logo officiel, aucun joueur réel |
 | Polices | Polices système (pile `Barlow Condensed`, `Roboto Condensed`, `Arial Narrow`, sans-serif) — aucune police embarquée |
 | Noms de joueurs | Combinaisons aléatoires de prénoms/noms courants (`src/data/names.ts`), aucune personne réelle visée |
 | Équipes, villes-nom, stades | Ligue Francophone : fictifs et originaux (`src/data/teams.ts`). Autres ligues (`src/data/world.ts`) : noms de remplacement « Ville + couleur » (nom de ville + couleur dominante), sans surnom officiel, logo, police ni nom de stade réel ; stades génériques « Ville + Stadium/Field/Dome… ». Aucune licence de ligue professionnelle. |
